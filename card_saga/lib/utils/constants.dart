@@ -46,8 +46,8 @@ class Strings {
     'world_piece': 'Mảnh thế giới',
     'owned': 'Sở hữu',
     'back': 'Quay lại',
-    'freeze_used': 'Freeze Time activated for 20s!',
-    'double_used': 'Double Coins for next 3 plays!',
-    'max_freeze': 'Max 5 freezes per level!',
+    'freeze_used': 'Đã kích hoạt Đóng băng thời gian trong 20 giây!',
+    'double_used': 'Đã kích hoạt Nhân đôi Xu trong 3 lượt tới!',
+    'max_freeze': 'Mỗi màn chỉ dùng tối đa 5 lần Đóng băng!',
   };
 }

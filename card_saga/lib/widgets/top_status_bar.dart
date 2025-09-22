@@ -14,7 +14,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.title,
     this.showShopButton = true,
-    this.showBack = true,
+    this.showBack = false, // 🔹 Mặc định không hiện back
   });
 
   @override
@@ -28,7 +28,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       backgroundColor: Colors.pinkAccent,
-      automaticallyImplyLeading: false,
+      automaticallyImplyLeading: false, // 🔹 chặn back tự sinh
       leading: showBack
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
