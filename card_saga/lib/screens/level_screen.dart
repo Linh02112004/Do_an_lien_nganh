@@ -88,7 +88,9 @@ class _LevelScreenState extends State<LevelScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(t['freeze_used'] ?? "Freeze Time activated for 20s!")),
+        backgroundColor: Colors.blueAccent,
+        content: Text(t['freeze_used'] ?? "Freeze Time activated for 20s!"),
+      ),
     );
   }
 
@@ -98,7 +100,9 @@ class _LevelScreenState extends State<LevelScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(t['double_used'] ?? "Double Coins for next 3 plays!")),
+        backgroundColor: Colors.orangeAccent,
+        content: Text(t['double_used'] ?? "Double Coins for next 3 plays!"),
+      ),
     );
   }
 
@@ -159,17 +163,36 @@ class _LevelScreenState extends State<LevelScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: AppColors.bg,
-        title: Text(won
-            ? (lang['level_complete'] ?? 'Level complete')
-            : (lang['time_up'] ?? 'Time up!')),
+        title: Row(
+          children: [
+            Icon(won ? Icons.emoji_events : Icons.timer_off,
+                color: won ? Colors.amber : Colors.red, size: 30),
+            const SizedBox(width: 8),
+            Text(
+              won
+                  ? (lang['level_complete'] ?? 'Level complete')
+                  : (lang['time_up'] ?? 'Time up!'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (won)
               Text(
-                  "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $coins"),
-            if (!won) Text(lang['time_up'] ?? 'Time up!'),
+                "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $coins",
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            if (!won)
+              Text(
+                lang['time_up'] ?? 'Time up!',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
           ],
         ),
         actions: [
@@ -216,36 +239,53 @@ class _LevelScreenState extends State<LevelScreen> {
       ),
       body: Column(
         children: [
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildItemButton(
                 icon: Icons.ac_unit,
+                label: lang['freeze'] ?? "Freeze",
+                color: Colors.blueAccent,
                 count: gs.user.inventory["freeze"]?.owned ?? 0,
                 onTap: () => _activateFreezeTime(gs, lang),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 24),
               _buildItemButton(
                 icon: Icons.monetization_on,
+                label: lang['double'] ?? "Double",
+                color: Colors.orangeAccent,
                 count: gs.user.inventory["double"]?.owned ?? 0,
                 onTap: () => _activateDoubleCoins(gs, lang),
               ),
             ],
           ),
           Container(
-            padding: const EdgeInsets.all(8),
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
             alignment: Alignment.centerRight,
-            child: Text("⏰ $_timeLeft s",
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(
+              "⏰ $_timeLeft s",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _isFrozen ? Colors.blue : Colors.red,
+              ),
+            ),
           ),
           Expanded(
             child: GridView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 20), // cách lề
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxis,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
+                mainAxisSpacing: 12, // khoảng cách dọc giữa các card
+                crossAxisSpacing: 12, // khoảng cách ngang
+                childAspectRatio: 0.8, // tỷ lệ card (rộng/hẹp)
               ),
               itemCount: _cards.length,
               itemBuilder: (context, index) {
@@ -264,16 +304,37 @@ class _LevelScreenState extends State<LevelScreen> {
 
   Widget _buildItemButton({
     required IconData icon,
+    required String label,
     required int count,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return Column(
       children: [
-        IconButton(
-          icon: Icon(icon, color: Colors.pink, size: 32),
-          onPressed: onTap,
+        Stack(
+          children: [
+            IconButton(
+              icon: Icon(icon, color: color, size: 36),
+              onPressed: onTap,
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  "x$count",
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            )
+          ],
         ),
-        Text("x$count"),
+        Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }

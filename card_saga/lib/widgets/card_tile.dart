@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class CardTile extends StatelessWidget {
+class CardTile extends StatefulWidget {
   final bool revealed;
   final String content;
   final VoidCallback onTap;
@@ -13,33 +13,90 @@ class CardTile extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<CardTile> createState() => _CardTileState();
+}
+
+class _CardTileState extends State<CardTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _flipAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+    _flipAnim = Tween<double>(begin: 0, end: 1).animate(_controller);
+  }
+
+  @override
+  void didUpdateWidget(CardTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.revealed != oldWidget.revealed) {
+      if (widget.revealed) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        decoration: BoxDecoration(
-          color: revealed ? Colors.white : Colors.blueAccent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 4,
-              offset: Offset(2, 2),
-            ),
-          ],
-        ),
-        child: Center(
-          child: revealed
-              ? Text(
-                  content,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _flipAnim,
+        builder: (context, child) {
+          final angle = _flipAnim.value * 3.14159;
+          final isFront = angle < 1.5708; // < 90 độ thì là mặt sau (úp)
+
+          return Transform(
+            transform: Matrix4.rotationY(angle),
+            alignment: Alignment.center,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isFront ? Colors.teal.shade400 : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(2, 2),
                   ),
-                )
-              : const Icon(Icons.help_outline, color: Colors.white),
-        ),
+                ],
+              ),
+              child: Center(
+                child: Transform(
+                  transform: Matrix4.rotationY(isFront ? 0 : 3.14159),
+                  alignment: Alignment.center,
+                  child: isFront
+                      ? const Icon(
+                          Icons.help_outline,
+                          size: 36,
+                          color: Colors.white,
+                        )
+                      : Text(
+                          widget.content,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
