@@ -27,6 +27,10 @@ class Strings {
     'freeze_used': 'Freeze Time activated for 20s!',
     'double_used': 'Double Coins for next 3 plays!',
     'max_freeze': 'Max 5 freezes per level!',
+    'dropped_pieces': 'Dropped pieces:',
+    'milestone_reward': '⭐ SPECIAL REWARD ⭐',
+    'better_luck': 'Better luck next time!',
+    'level_failed': 'You did not complete this level.',
   };
 
   static const vi = {
@@ -49,5 +53,9 @@ class Strings {
     'freeze_used': 'Đã kích hoạt Đóng băng thời gian trong 20 giây!',
     'double_used': 'Đã kích hoạt Nhân đôi Xu trong 3 lượt tới!',
     'max_freeze': 'Mỗi màn chỉ dùng tối đa 5 lần Đóng băng!',
+    'dropped_pieces': 'Mảnh thu được:',
+    'milestone_reward': '⭐ PHẦN THƯỞNG ĐẶC BIỆT ⭐',
+    'better_luck': 'Chúc bạn may mắn lần sau!',
+    'level_failed': 'Bạn đã không hoàn thành ải này.',
   };
 }

@@ -23,20 +23,23 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollController.addListener(_onScroll);
+    });
   }
 
   void _onScroll() {
+    if (!mounted) return;
     final gs = context.read<GameService>();
     if (_scrollController.position.pixels >
         _scrollController.position.maxScrollExtent - 400) {
-      // Khi kéo gần cuối thì tự tạo thêm ải
       gs.generateMoreLevels(5);
     }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -47,11 +50,36 @@ class _MapScreenState extends State<MapScreen> {
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
 
+    /// Hiển thị màn hình tải dữ liệu
+    if (gs.isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFEAF4),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.pinkAccent),
+              const SizedBox(height: 20),
+              Text(
+                'Đang tải dữ liệu game...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.pink.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final screenWidth = MediaQuery.of(context).size.width;
     const nodeSize = 64.0;
     const verticalGap = 120.0;
     final totalLevels = gs.levels.length;
-    final contentHeight = math.max(600.0, totalLevels * verticalGap + 200.0);
+    final contentHeight = math.max(
+        MediaQuery.of(context).size.height, totalLevels * verticalGap + 200.0);
 
     final leftA = 24.0;
     final leftB = screenWidth - nodeSize - 24.0;
@@ -110,6 +138,7 @@ class _MapScreenState extends State<MapScreen> {
                                     SnackBar(
                                       content:
                                           Text('Level ${level.id} is locked'),
+                                      duration: const Duration(seconds: 1),
                                     ),
                                   );
                                 }
@@ -153,9 +182,10 @@ class _MapScreenState extends State<MapScreen> {
                         children: [
                           const Icon(Icons.map, color: Colors.pink),
                           const SizedBox(width: 8),
-                          Text(t['map_title']!,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(
+                            t['map_title']!,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ],
                       ),
                     ),
@@ -184,16 +214,25 @@ class _PathPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final path = Path();
-    final centerX = size.width / 2;
-    path.moveTo(centerX, 20);
+    final startY = 40.0 + (64.0 / 2);
+    path.moveTo(size.width / 2, startY);
 
-    for (int i = 0; i < totalLevels; i++) {
-      final yStart = i * verticalGap + 20;
-      final yMid = yStart + verticalGap / 2;
-      final yEnd = yStart + verticalGap;
+    for (int i = 0; i < totalLevels - 1; i++) {
+      final currentIsLeft = i % 2 == 0;
+      final currentX =
+          currentIsLeft ? (24.0 + 32.0) : (size.width - 24.0 - 32.0);
+      final currentY = i * verticalGap + startY;
 
-      final controlX = (i % 2 == 0) ? 60.0 : (size.width - 60.0);
-      path.quadraticBezierTo(controlX, yMid, centerX, yEnd);
+      final nextIsLeft = (i + 1) % 2 == 0;
+      final nextX = nextIsLeft ? (24.0 + 32.0) : (size.width - 24.0 - 32.0);
+      final nextY = (i + 1) * verticalGap + startY;
+
+      final controlX1 = currentX;
+      final controlY1 = currentY + verticalGap / 2;
+      final controlX2 = nextX;
+      final controlY2 = nextY - verticalGap / 2;
+
+      path.cubicTo(controlX1, controlY1, controlX2, controlY2, nextX, nextY);
     }
 
     final shadow = Paint()
@@ -201,6 +240,7 @@ class _PathPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 18
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
     canvas.drawPath(path, shadow);
     canvas.drawPath(path, paint);
   }

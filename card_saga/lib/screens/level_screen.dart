@@ -8,6 +8,7 @@ import '../widgets/card_tile.dart';
 import '../services/game_service.dart';
 import '../utils/constants.dart';
 import '../models/level.dart';
+import '../models/puzzle_piece.dart';
 import '../providers/lang_provider.dart';
 import '../widgets/top_status_bar.dart';
 
@@ -27,8 +28,6 @@ class _LevelScreenState extends State<LevelScreen> {
   int _timeLeft = 0;
   bool _gameOver = false;
   bool _gameWon = false;
-
-  // Freeze state
   bool _isFrozen = false;
   int _freezeCountThisLevel = 0;
 
@@ -60,9 +59,16 @@ class _LevelScreenState extends State<LevelScreen> {
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_isFrozen) return; // khi freeze thì không giảm thời gian
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_isFrozen) return;
       if (_timeLeft <= 0) {
-        _endGame(false);
+        final langProvider = Provider.of<LangProvider>(context, listen: false);
+        final langMap =
+            langProvider.locale.languageCode == 'en' ? Strings.en : Strings.vi;
+        _endGame(false, langMap);
       } else {
         setState(() => _timeLeft--);
       }
@@ -77,15 +83,19 @@ class _LevelScreenState extends State<LevelScreen> {
       return;
     }
     final ok = gs.useItem("freeze");
-    if (!ok) return;
-
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t['not_enough_coins'] ?? "No item")),
+      );
+      return;
+    }
     _freezeCountThisLevel++;
     setState(() => _isFrozen = true);
-
     Future.delayed(const Duration(seconds: 20), () {
-      setState(() => _isFrozen = false);
+      if (mounted) {
+        setState(() => _isFrozen = false);
+      }
     });
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.blueAccent,
@@ -96,8 +106,12 @@ class _LevelScreenState extends State<LevelScreen> {
 
   void _activateDoubleCoins(GameService gs, Map<String, String> t) {
     final ok = gs.useItem("double");
-    if (!ok) return;
-
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t['not_enough_coins'] ?? "No item")),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.orangeAccent,
@@ -108,14 +122,13 @@ class _LevelScreenState extends State<LevelScreen> {
 
   void _onCardTap(int index) {
     if (_revealed[index] || _selected.length == 2 || _gameOver) return;
-
     setState(() {
       _revealed[index] = true;
       _selected.add(index);
     });
-
     if (_selected.length == 2) {
       Future.delayed(const Duration(milliseconds: 700), () {
+        if (!mounted) return;
         setState(() {
           final a = _selected[0], b = _selected[1];
           if (_cards[a] != _cards[b]) {
@@ -124,88 +137,164 @@ class _LevelScreenState extends State<LevelScreen> {
           }
           _selected.clear();
         });
-
         if (_revealed.every((r) => r)) {
-          _endGame(true);
+          final langProvider =
+              Provider.of<LangProvider>(context, listen: false);
+          final langMap = langProvider.locale.languageCode == 'en'
+              ? Strings.en
+              : Strings.vi;
+          _endGame(true, langMap);
         }
       });
     }
   }
 
-  void _endGame(bool won) {
+  Future<void> _endGame(bool won, Map<String, String> lang) async {
     _timer?.cancel();
     setState(() {
       _gameOver = true;
       _gameWon = won;
     });
 
-    int stars = 0;
-    int coins = 0;
-    if (won) {
-      if (_timeLeft > widget.level.timeLimit * 0.6) {
-        stars = 3;
-      } else if (_timeLeft > widget.level.timeLimit * 0.3) {
-        stars = 2;
-      } else {
-        stars = 1;
-      }
-      coins = stars * 10;
+    if (!won) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: Text(lang['time_up'] ?? 'Time up!'),
+          content:
+              Text(lang['level_failed'] ?? 'You did not complete this level.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text("OK"),
+            )
+          ],
+        ),
+      );
+      return;
     }
 
+    int stars = 0;
+    int coins = 0;
+    if (_timeLeft > widget.level.timeLimit * 0.6) {
+      stars = 3;
+    } else if (_timeLeft > widget.level.timeLimit * 0.3) {
+      stars = 2;
+    } else {
+      stars = 1;
+    }
+    coins = stars * 10;
+
+    LevelCompletionResult result = LevelCompletionResult();
     final gameService = Provider.of<GameService>(context, listen: false);
-    gameService.completeLevel(widget.level.id, stars, coins);
 
-    final langProvider = Provider.of<LangProvider>(context, listen: false);
-    final lang =
-        langProvider.locale.languageCode == 'en' ? Strings.en : Strings.vi;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: AppColors.bg,
-        title: Row(
-          children: [
-            Icon(won ? Icons.emoji_events : Icons.timer_off,
-                color: won ? Colors.amber : Colors.red, size: 30),
-            const SizedBox(width: 8),
-            Text(
-              won
-                  ? (lang['level_complete'] ?? 'Level complete')
-                  : (lang['time_up'] ?? 'Time up!'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+    try {
+      result = await gameService.completeLevel(
+          context, widget.level.id, stars, coins);
+      await Future.delayed(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint("An error occurred during level completion: $e");
+    } finally {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.bg,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.emoji_events, color: Colors.amber, size: 30),
+              const SizedBox(width: 8),
+              Text(
+                lang['level_complete'] ?? 'Level complete',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $coins",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                if (result.droppedPieces.isNotEmpty)
+                  Column(
+                    children: [
+                      Text(lang['dropped_pieces'] ?? 'Mảnh thu được:',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: result.droppedPieces
+                            .map(
+                                (p) => p.buildWidget(size: 50, borderRadius: 8))
+                            .toList(),
+                      )
+                    ],
+                  ),
+                if (result.milestonePieces.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Column(
+                      children: [
+                        Text(
+                            lang['milestone_reward'] ??
+                                '⭐ PHẦN THƯỞNG ĐẶC BIỆT ⭐',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepPurple,
+                                fontSize: 16)),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: result.milestonePieces
+                              .map((p) =>
+                                  p.buildWidget(size: 60, borderRadius: 8))
+                              .toList(),
+                        )
+                      ],
+                    ),
+                  ),
+                if (result.droppedPieces.isEmpty &&
+                    result.milestonePieces.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12.0),
+                    child: Text(
+                        lang['better_luck'] ?? "Chúc bạn may mắn lần sau!"),
+                  ),
+              ],
             ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              child: const Text("OK", style: TextStyle(color: Colors.white)),
+            )
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (won)
-              Text(
-                "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $coins",
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            if (!won)
-              Text(
-                lang['time_up'] ?? 'Time up!',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context); // quay về map
-            },
-            child: const Text("OK"),
-          )
-        ],
-      ),
-    );
+      );
+    }
   }
 
   @override
@@ -279,13 +368,12 @@ class _LevelScreenState extends State<LevelScreen> {
           ),
           Expanded(
             child: GridView.builder(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 20), // cách lề
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxis,
-                mainAxisSpacing: 12, // khoảng cách dọc giữa các card
-                crossAxisSpacing: 12, // khoảng cách ngang
-                childAspectRatio: 0.8, // tỷ lệ card (rộng/hẹp)
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.8,
               ),
               itemCount: _cards.length,
               itemBuilder: (context, index) {
