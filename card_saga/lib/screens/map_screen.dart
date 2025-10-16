@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
+import 'package:collection/collection.dart';
+import 'package:animate_do/animate_do.dart';
 
 import '../services/game_service.dart';
 import '../widgets/level_node.dart';
@@ -24,8 +26,27 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _scrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToNextPlayableLevel();
       _scrollController.addListener(_onScroll);
     });
+  }
+
+  void _scrollToNextPlayableLevel() {
+    if (!mounted) return;
+    final gs = context.read<GameService>();
+    final nextPlayable = gs.levels
+        .firstWhereOrNull((level) => level.unlocked && level.stars == 0);
+
+    if (nextPlayable != null) {
+      final index = gs.levels.indexOf(nextPlayable);
+      final offset = (index * 120.0 - 40.0).clamp(0.0, double.infinity);
+
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _onScroll() {
@@ -46,33 +67,18 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (Phần code trên không đổi)
     final gs = context.watch<GameService>();
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
 
-    /// Hiển thị màn hình tải dữ liệu
     if (gs.isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFFFEAF4),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(color: Colors.pinkAccent),
-              const SizedBox(height: 20),
-              Text(
-                'Đang tải dữ liệu game...',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.pink.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      return Scaffold(/* ... Màn hình loading ... */);
     }
+
+    final nextPlayableLevel =
+        gs.levels.firstWhereOrNull((l) => l.unlocked && l.stars == 0);
+    final nextPlayableLevelId = nextPlayableLevel?.id;
 
     final screenWidth = MediaQuery.of(context).size.width;
     const nodeSize = 64.0;
@@ -88,6 +94,7 @@ class _MapScreenState extends State<MapScreen> {
       appBar: TopStatusBar(title: t['map_title']!, showShopButton: true),
       body: Stack(
         children: [
+          // ... (Phần background không đổi)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -102,6 +109,7 @@ class _MapScreenState extends State<MapScreen> {
             child: SizedBox(
               height: contentHeight,
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   CustomPaint(
                     size: Size(screenWidth, contentHeight),
@@ -118,78 +126,34 @@ class _MapScreenState extends State<MapScreen> {
                       top: top,
                       width: nodeSize,
                       height: nodeSize + 30,
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            width: nodeSize,
-                            height: nodeSize,
-                            child: LevelNode(
-                              level: level,
-                              onTap: () {
-                                if (level.unlocked) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => LevelScreen(level: level),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content:
-                                          Text('Level ${level.id} is locked'),
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(3, (starIndex) {
-                              final filled = level.stars > starIndex;
-                              return Icon(
-                                filled ? Icons.star : Icons.star_border,
-                                size: 16,
-                                color: filled
-                                    ? Colors.amber
-                                    : Colors.grey.shade400,
+                      // --- 2. THAY ĐỔI Ở ĐÂY ---
+                      child: FadeInUp(
+                        delay: Duration(milliseconds: 80 * (i % 10)),
+                        duration: const Duration(milliseconds: 400),
+                        child: LevelNode(
+                          level: level,
+                          isNextPlayable: level.id == nextPlayableLevelId,
+                          onTap: () {
+                            if (level.unlocked) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => LevelScreen(level: level),
+                                ),
                               );
-                            }),
-                          ),
-                        ],
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Level ${level.id} đã bị khóa'),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                       ),
                     );
                   }),
-                  Positioned(
-                    left: (screenWidth - 140) / 2,
-                    top: 8,
-                    child: Container(
-                      width: 140,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 6)
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.map, color: Colors.pink),
-                          const SizedBox(width: 8),
-                          Text(
-                            t['map_title']!,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -200,6 +164,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
+// ... (Class _PathPainter không đổi)
 class _PathPainter extends CustomPainter {
   final int totalLevels;
   final double verticalGap;
@@ -215,7 +180,13 @@ class _PathPainter extends CustomPainter {
 
     final path = Path();
     final startY = 40.0 + (64.0 / 2);
-    path.moveTo(size.width / 2, startY);
+
+    if (totalLevels == 0) return;
+
+    final firstNodeIsLeft = 0 % 2 == 0;
+    final firstNodeX =
+        firstNodeIsLeft ? (24.0 + 32.0) : (size.width - 24.0 - 32.0);
+    path.moveTo(firstNodeX, startY);
 
     for (int i = 0; i < totalLevels - 1; i++) {
       final currentIsLeft = i % 2 == 0;
