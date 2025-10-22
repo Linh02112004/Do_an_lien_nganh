@@ -1,5 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+
 import '../models/level.dart';
 import '../models/user.dart';
 import '../models/item.dart';
@@ -23,6 +26,17 @@ class GameService extends ChangeNotifier {
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
+  bool _isGeneratingMore = false;
+
+  final List<String> biomeOrder = [
+    'emoji',
+    'fruit_vegetables',
+  ];
+
+  static const int biomeSize = 10;
+
+  final Map<String, List<String>> decorationAssetsByBiome = {};
+
   static const Map<int, List<String>> starMilestoneRewards = {
     10: ['1_0_0'],
     25: ['2_0_0'],
@@ -39,12 +53,50 @@ class GameService extends ChangeNotifier {
   Future<void> _initPuzzles() async {
     try {
       await puzzleService.loadPuzzles();
+      await _loadDecorationAssets();
     } catch (e) {
-      debugPrint('PuzzleService.loadPuzzles error: $e');
+      debugPrint('Lỗi khi khởi tạo service: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _loadDecorationAssets() async {
+    try {
+      decorationAssetsByBiome.clear();
+      for (final biomeName in biomeOrder) {
+        decorationAssetsByBiome[biomeName] = [];
+      }
+
+      final manifestJson = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestJson);
+
+      final allAssetPaths = manifestMap.keys;
+
+      for (final path in allAssetPaths) {
+        for (final biomeName in biomeOrder) {
+          if (path.startsWith('assets/imgs/$biomeName/')) {
+            decorationAssetsByBiome[biomeName]?.add(path);
+            break;
+          }
+        }
+      }
+
+      debugPrint('Đã tải và phân loại assets: $decorationAssetsByBiome');
+    } catch (e) {
+      debugPrint('Lỗi khi tải ảnh trang trí: $e');
+    }
+  }
+
+  List<String> getAssetsForLevel(int levelId) {
+    final int biomeIndex = (levelId - 1) ~/ biomeSize;
+
+    if (biomeOrder.isEmpty) return [];
+
+    final String biomeName = biomeOrder[biomeIndex % biomeOrder.length];
+
+    return decorationAssetsByBiome[biomeName] ?? [];
   }
 
   final List<Item> shopItems = [
@@ -81,10 +133,17 @@ class GameService extends ChangeNotifier {
   }
 
   void generateMoreLevels([int count = 5]) {
+    if (_isGeneratingMore) return;
+    _isGeneratingMore = true;
+
     for (int i = 0; i < count; i++) {
       levels.add(_gen.generateNext(levels.last));
     }
     notifyListeners();
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _isGeneratingMore = false;
+    });
   }
 
   void unlockNext(int currentLevelId) {
@@ -98,7 +157,6 @@ class GameService extends ChangeNotifier {
     }
   }
 
-  /// Hàm kiểm tra và thưởng khi đạt mốc sao
   List<PuzzlePiece> _checkStarMilestones(int oldStars, int newStars) {
     final rewards = <PuzzlePiece>[];
     starMilestoneRewards.forEach((starGoal, pieceIds) {
@@ -115,7 +173,6 @@ class GameService extends ChangeNotifier {
     return rewards;
   }
 
-  /// 🏁 Khi hoàn thành ải - LOGIC MỚI
   Future<LevelCompletionResult> completeLevel(
     BuildContext context,
     int id,

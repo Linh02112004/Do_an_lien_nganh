@@ -27,6 +27,7 @@ class _CardTileState extends State<CardTile>
     _controller = AnimationController(
       duration: const Duration(milliseconds: 350),
       vsync: this,
+      value: widget.revealed ? 1.0 : 0.0,
     );
     _flipAnim = Tween<double>(begin: 0, end: 1).animate(_controller);
   }
@@ -57,7 +58,7 @@ class _CardTileState extends State<CardTile>
         animation: _flipAnim,
         builder: (context, child) {
           final angle = _flipAnim.value * 3.14159;
-          final isFront = angle < 1.5708; // < 90 độ thì là mặt sau (úp)
+          final isFront = angle < 1.5708;
 
           return Transform(
             transform: Matrix4.rotationY(angle),
