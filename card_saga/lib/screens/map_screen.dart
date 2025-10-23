@@ -11,6 +11,8 @@ import '../providers/lang_provider.dart';
 import '../utils/constants.dart';
 import '../widgets/top_status_bar.dart';
 
+import '../widgets/animated_decoration.dart';
+
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -20,6 +22,10 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   late ScrollController _scrollController;
+
+  final List<Map<String, dynamic>> _generatedDecorations = [];
+  double _decorationsGeneratedUpToHeight = 0.0;
+  final math.Random _random = math.Random();
 
   @override
   void initState() {
@@ -67,13 +73,31 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (Phần code trên không đổi)
     final gs = context.watch<GameService>();
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
 
     if (gs.isLoading) {
-      return Scaffold(/* ... Màn hình loading ... */);
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFEAF4),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.pinkAccent),
+              const SizedBox(height: 20),
+              Text(
+                'Đang tải dữ liệu game...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.pink.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final nextPlayableLevel =
@@ -84,8 +108,41 @@ class _MapScreenState extends State<MapScreen> {
     const nodeSize = 64.0;
     const verticalGap = 120.0;
     final totalLevels = gs.levels.length;
-    final contentHeight = math.max(
+
+    final newContentHeight = math.max(
         MediaQuery.of(context).size.height, totalLevels * verticalGap + 200.0);
+
+    if (newContentHeight > _decorationsGeneratedUpToHeight) {
+      final double heightAdded =
+          newContentHeight - _decorationsGeneratedUpToHeight;
+
+      final double density = 15 / 1000.0;
+      final int numToGenerate = (heightAdded * density).toInt();
+
+      for (int i = 0; i < numToGenerate; i++) {
+        final double randomTop = _decorationsGeneratedUpToHeight +
+            _random.nextDouble() * heightAdded;
+
+        final int levelAtTop = (randomTop / verticalGap).toInt() + 1;
+
+        final List<String> assetsForThisBiome =
+            gs.getAssetsForLevel(levelAtTop);
+
+        if (assetsForThisBiome.isNotEmpty) {
+          _generatedDecorations.add({
+            'path':
+                assetsForThisBiome[_random.nextInt(assetsForThisBiome.length)],
+            'top': randomTop,
+            'left': _random.nextDouble() * (screenWidth - 80) + 40,
+            'size': 40.0 + _random.nextDouble() * 30.0,
+            'type':
+                _random.nextBool() ? AnimationType.float : AnimationType.rotate,
+          });
+        }
+      }
+
+      _decorationsGeneratedUpToHeight = newContentHeight;
+    }
 
     final leftA = 24.0;
     final leftB = screenWidth - nodeSize - 24.0;
@@ -94,7 +151,6 @@ class _MapScreenState extends State<MapScreen> {
       appBar: TopStatusBar(title: t['map_title']!, showShopButton: true),
       body: Stack(
         children: [
-          // ... (Phần background không đổi)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -107,15 +163,37 @@ class _MapScreenState extends State<MapScreen> {
           SingleChildScrollView(
             controller: _scrollController,
             child: SizedBox(
-              height: contentHeight,
+              height: newContentHeight,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
+                  // Đường đi
                   CustomPaint(
-                    size: Size(screenWidth, contentHeight),
+                    size: Size(screenWidth, newContentHeight),
                     painter: _PathPainter(
                         totalLevels: totalLevels, verticalGap: verticalGap),
                   ),
+
+                  // Icon trang trí
+                  ..._generatedDecorations.map((deco) {
+                    return Positioned(
+                      top: deco['top'],
+                      left: deco['left'],
+                      child: FadeIn(
+                        delay: Duration(
+                            milliseconds:
+                                300 + ((deco['top'] as num) % 400).toInt()),
+                        duration: const Duration(milliseconds: 800),
+                        child: AnimatedDecoration(
+                          imagePath: deco['path'],
+                          size: deco['size'],
+                          animationType: deco['type'],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+
+                  // Các nút Level
                   ...List.generate(totalLevels, (i) {
                     final level = gs.levels[i];
                     final left = (i % 2 == 0) ? leftA : leftB;
@@ -126,7 +204,6 @@ class _MapScreenState extends State<MapScreen> {
                       top: top,
                       width: nodeSize,
                       height: nodeSize + 30,
-                      // --- 2. THAY ĐỔI Ở ĐÂY ---
                       child: FadeInUp(
                         delay: Duration(milliseconds: 80 * (i % 10)),
                         duration: const Duration(milliseconds: 400),
@@ -164,7 +241,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
-// ... (Class _PathPainter không đổi)
 class _PathPainter extends CustomPainter {
   final int totalLevels;
   final double verticalGap;

@@ -5,10 +5,11 @@ class LevelGenerator {
   final Random _rng = Random();
 
   Level firstLevel() {
+    // Bắt đầu với 3 cặp (6 card), 100s
     return Level(
       id: 1,
       pairCount: 3,
-      timeLimit: 80,
+      timeLimit: 100,
       unlocked: true,
     );
   }
@@ -18,18 +19,33 @@ class LevelGenerator {
     int nextPair = last.pairCount;
     int nextTime = last.timeLimit;
 
-    if (last.pairCount < 12) {
-      if (_rng.nextDouble() < 0.7) {
+    const List<int> badPairCounts = [5, 7, 11, 13, 14, 17, 19];
+    bool pairCountIncreased = false;
+
+    if (last.pairCount < 20) {
+      if (_rng.nextDouble() < 0.15) {
         nextPair = last.pairCount + 1;
+        while (badPairCounts.contains(nextPair)) {
+          nextPair++;
+        }
+        if (nextPair > 20) nextPair = 20;
+        if (nextPair != last.pairCount) {
+          pairCountIncreased = true;
+        }
       }
     }
 
-    if (last.timeLimit > 20) {
-      if (_rng.nextDouble() < 0.6) {
-        int reduce = 5 + _rng.nextInt(6);
-        nextTime = max(20, last.timeLimit - reduce);
-      }
+    int reduce = 2 + _rng.nextInt(3);
+
+    if (!pairCountIncreased) {
+      nextTime = last.timeLimit - reduce;
+    } else if (_rng.nextDouble() < 0.2) {
+      nextTime = last.timeLimit - reduce;
     }
+
+    int minTime = (nextPair * 10).clamp(40, 200); // 10s/cặp, sàn 40s
+
+    nextTime = max(minTime, nextTime);
 
     return Level(
       id: last.id + 1,

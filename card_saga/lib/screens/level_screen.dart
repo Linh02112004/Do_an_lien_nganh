@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +23,9 @@ class LevelScreen extends StatefulWidget {
 
 class _LevelScreenState extends State<LevelScreen> {
   List<String> _cards = [];
-  List<bool> _revealed = [];
+
+  List<int> _completed = [];
+
   List<int> _selected = [];
   Timer? _timer;
   int _timeLeft = 0;
@@ -30,6 +33,7 @@ class _LevelScreenState extends State<LevelScreen> {
   bool _gameWon = false;
   bool _isFrozen = false;
   int _freezeCountThisLevel = 0;
+  bool _isChecking = false;
 
   @override
   void initState() {
@@ -52,7 +56,8 @@ class _LevelScreenState extends State<LevelScreen> {
     }
     pool.shuffle(Random());
     _cards = pool;
-    _revealed = List<bool>.filled(_cards.length, false);
+
+    _completed = [];
     _selected = [];
   }
 
@@ -121,23 +126,45 @@ class _LevelScreenState extends State<LevelScreen> {
   }
 
   void _onCardTap(int index) {
-    if (_revealed[index] || _selected.length == 2 || _gameOver) return;
-    setState(() {
-      _revealed[index] = true;
-      _selected.add(index);
-    });
+    if (_gameOver ||
+        _isChecking ||
+        _completed.contains(index) ||
+        _selected.contains(index)) {
+      return;
+    }
+
+    // Nếu mới chọn 1 thẻ
+    if (_selected.length < 2) {
+      setState(() {
+        _selected.add(index);
+      });
+    }
+
+    // Nếu đã chọn đủ 2 thẻ
     if (_selected.length == 2) {
+      _isChecking = true;
+      final int a = _selected[0];
+      final int b = _selected[1];
+
       Future.delayed(const Duration(milliseconds: 700), () {
         if (!mounted) return;
+
         setState(() {
-          final a = _selected[0], b = _selected[1];
-          if (_cards[a] != _cards[b]) {
-            _revealed[a] = false;
-            _revealed[b] = false;
+          // Kiểm tra xem 2 thẻ có khớp không
+          if (_cards[a] == _cards[b]) {
+            // KHỚP: Thêm chúng vào danh sách _completed
+            _completed.add(a);
+            _completed.add(b);
           }
+
+          // Dù khớp hay không, xóa 2 thẻ khỏi _selected
           _selected.clear();
+
+          _isChecking = false;
         });
-        if (_revealed.every((r) => r)) {
+
+        // Kiểm tra thắng
+        if (_completed.length == _cards.length) {
           final langProvider =
               Provider.of<LangProvider>(context, listen: false);
           final langMap = langProvider.locale.languageCode == 'en'
@@ -297,6 +324,19 @@ class _LevelScreenState extends State<LevelScreen> {
     }
   }
 
+  Map<String, int> _calculateGridDimensions(int totalCards) {
+    if (totalCards % 4 == 0) {
+      return {'rows': totalCards ~/ 4, 'cols': 4};
+    }
+    if (totalCards % 3 == 0) {
+      return {'rows': totalCards ~/ 3, 'cols': 3};
+    }
+    if (totalCards % 2 == 0) {
+      return {'rows': totalCards ~/ 2, 'cols': 2};
+    }
+    return {'rows': totalCards, 'cols': 1};
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -311,8 +351,8 @@ class _LevelScreenState extends State<LevelScreen> {
       );
     }
 
-    int crossAxis = sqrt(_cards.length).ceil();
-    if (crossAxis < 2) crossAxis = 2;
+    final gridDims = _calculateGridDimensions(_cards.length);
+    final int numColumns = gridDims['cols']!;
 
     final langProvider = Provider.of<LangProvider>(context);
     final lang =
@@ -370,15 +410,18 @@ class _LevelScreenState extends State<LevelScreen> {
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxis,
+                crossAxisCount: numColumns,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.8,
               ),
               itemCount: _cards.length,
               itemBuilder: (context, index) {
+                final bool isRevealed =
+                    _selected.contains(index) || _completed.contains(index);
+
                 return CardTile(
-                  revealed: _revealed[index],
+                  revealed: isRevealed,
                   content: _cards[index],
                   onTap: () => _onCardTap(index),
                 );
