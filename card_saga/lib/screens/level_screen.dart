@@ -25,7 +25,6 @@ class _LevelScreenState extends State<LevelScreen> {
   List<String> _cards = [];
 
   List<int> _completed = [];
-
   List<int> _selected = [];
   Timer? _timer;
   int _timeLeft = 0;
@@ -38,7 +37,9 @@ class _LevelScreenState extends State<LevelScreen> {
   @override
   void initState() {
     super.initState();
-    _initGame();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initGame();
+    });
   }
 
   void _initGame() {
@@ -48,17 +49,48 @@ class _LevelScreenState extends State<LevelScreen> {
   }
 
   void _generateCards() {
+    // Lấy GameService từ Provider
+    final gameService = Provider.of<GameService>(context, listen: false);
     final int pairCount = widget.level.pairCount;
-    final List<String> pool = [];
-    for (int i = 0; i < pairCount; i++) {
-      pool.add("🍭${i + 1}");
-      pool.add("🍭${i + 1}");
+
+    // Lấy danh sách ảnh cho biome của level này
+    final List<String> availableAssets =
+        gameService.getAssetsForLevel(widget.level.id);
+
+    // Xử lý trường hợp không có đủ ảnh
+    if (availableAssets.length < pairCount) {
+      // Có thể hiển thị lỗi, hoặc dùng ảnh mặc định, hoặc lặp lại ảnh
+      print(
+          "Lỗi: Không đủ ảnh trong biome cho level ${widget.level.id}. Cần $pairCount, có ${availableAssets.length}");
+      // Tạm thời dùng lại logic cũ để tránh crash
+      final List<String> pool = [];
+      for (int i = 0; i < pairCount; i++) {
+        pool.add("?"); // Ký tự thay thế khi thiếu ảnh
+        pool.add("?");
+      }
+      pool.shuffle(Random());
+      _cards = pool;
+    } else {
+      // Chọn ngẫu nhiên 'pairCount' ảnh từ danh sách
+      availableAssets.shuffle(Random());
+      final List<String> selectedImagePaths =
+          availableAssets.sublist(0, pairCount);
+
+      // Tạo danh sách thẻ bài với các cặp đường dẫn ảnh
+      final List<String> pool = [];
+      for (String imagePath in selectedImagePaths) {
+        pool.add(imagePath);
+        pool.add(imagePath);
+      }
+      pool.shuffle(Random());
+      _cards = pool; // Gán danh sách đường dẫn ảnh đã xáo trộn
     }
-    pool.shuffle(Random());
-    _cards = pool;
 
     _completed = [];
     _selected = [];
+
+    // Cần gọi setState để cập nhật UI sau khi _cards được tạo
+    setState(() {});
   }
 
   void _startTimer() {

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 class CardTile extends StatefulWidget {
@@ -52,50 +54,70 @@ class _CardTileState extends State<CardTile>
 
   @override
   Widget build(BuildContext context) {
+    final backSide = Container(
+      key: const ValueKey(false),
+      decoration: BoxDecoration(
+        color: Colors.teal.shade400,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 1)),
+        ],
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.question_mark_rounded,
+          size: 36,
+          color: Colors.white,
+        ),
+      ),
+    );
+
+    final frontSide = Container(
+      key: const ValueKey(true),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 1)),
+        ],
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: Image.asset(
+            widget.content,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              print("Lỗi tải ảnh: ${widget.content} - $error");
+              return const Icon(Icons.broken_image,
+                  size: 30, color: Colors.grey);
+            },
+          ),
+        ),
+      ),
+    );
+
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
-        animation: _flipAnim,
+        animation: _controller,
         builder: (context, child) {
-          final angle = _flipAnim.value * 3.14159;
-          final isFront = angle < 1.5708;
+          final angle = _controller.value * math.pi;
+
+          final showFront = angle > (math.pi / 2);
 
           return Transform(
-            transform: Matrix4.rotationY(angle),
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle),
             alignment: Alignment.center,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isFront ? Colors.teal.shade400 : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 6,
-                    offset: Offset(2, 2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Transform(
-                  transform: Matrix4.rotationY(isFront ? 0 : 3.14159),
-                  alignment: Alignment.center,
-                  child: isFront
-                      ? const Icon(
-                          Icons.help_outline,
-                          size: 36,
-                          color: Colors.white,
-                        )
-                      : Text(
-                          widget.content,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                ),
-              ),
-            ),
+            child: showFront
+                ? Transform(
+                    transform: Matrix4.rotationY(math.pi),
+                    alignment: Alignment.center,
+                    child: frontSide,
+                  )
+                : backSide,
           );
         },
       ),

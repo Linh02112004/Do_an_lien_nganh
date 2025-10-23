@@ -56,6 +56,13 @@ class _AnimatedStarState extends State<AnimatedStar>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isFilled && _controller.value == 0.0) {
+      return Icon(
+        Icons.star_border_rounded,
+        size: 18,
+        color: Colors.grey.shade400,
+      );
+    }
     return ScaleTransition(
       scale: _scaleAnimation,
       child: Icon(
