@@ -8,6 +8,7 @@ import '../models/puzzle_piece.dart';
 class PuzzleService {
   final List<PuzzleImage> puzzles = [];
   final Random _rnd = Random();
+  static const double targetAspectRatio = 9.0 / 16.0;
 
   Future<void> loadPuzzles() async {
     if (puzzles.isNotEmpty) return;
@@ -15,7 +16,7 @@ class PuzzleService {
       try {
         final path = 'assets/puzzles/$i.jpg';
         final img = await _loadImage(path);
-        final pieces = _cutImage(img, i, path);
+        final pieces = await _cutImageWithAspectRatio(img, i, path);
         puzzles.add(PuzzleImage(id: i, fullImagePath: path, pieces: pieces));
       } catch (e) {
         debugPrint("Error loading puzzle $i: $e");
@@ -23,24 +24,52 @@ class PuzzleService {
     }
   }
 
-  /// Cắt ảnh thành các mảnh nhỏ và đánh dấu mảnh đặc biệt
-  List<PuzzlePiece> _cutImage(ui.Image image, int imageId, String fullPath) {
+  Future<List<PuzzlePiece>> _cutImageWithAspectRatio(
+      ui.Image image, int imageId, String fullPath) async {
     final pieces = <PuzzlePiece>[];
-    final w = image.width.toDouble();
-    final h = image.height.toDouble();
+    final imgWidth = image.width.toDouble();
+    final imgHeight = image.height.toDouble();
+    final imgAspectRatio = imgWidth / imgHeight;
 
-    final cols = 3 + _rnd.nextInt(4);
-    final rows = 3 + _rnd.nextInt(4);
-    final cellW = w / cols;
-    final cellH = h / rows;
+    double sourceCropWidth;
+    double sourceCropHeight;
+    double sourceCropX = 0;
+    double sourceCropY = 0;
+
+    // Xác định vùng ảnh cần cắt (crop) để đúng targetAspectRatio
+    if (imgAspectRatio > targetAspectRatio) {
+      // Ảnh gốc rộng hơn target => Cắt bớt chiều ngang
+      sourceCropWidth = imgHeight * targetAspectRatio;
+      sourceCropHeight = imgHeight;
+      sourceCropX = (imgWidth - sourceCropWidth) / 2.0;
+      sourceCropY = 0;
+    } else {
+      // Ảnh gốc cao hơn hoặc bằng target => Cắt bớt chiều dọc
+      sourceCropWidth = imgWidth;
+      sourceCropHeight = imgWidth / targetAspectRatio;
+      sourceCropX = 0;
+      sourceCropY = (imgHeight - sourceCropHeight) / 2.0;
+    }
+
+    // Chọn số cột và hàng ngẫu nhiên (có thể giữ nguyên logic cũ)
+    final cols = 3 + _rnd.nextInt(4); // 3 đến 6 cột
+    final rows = 3 + _rnd.nextInt(4); // 3 đến 6 hàng
+    final pieceWidthInSource = sourceCropWidth / cols;
+    final pieceHeightInSource = sourceCropHeight / rows;
 
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols; c++) {
-        final bool isSpecialPiece = (r == 0 && c == 0 && imageId <= 5);
+        // Tính toán Rect của mảnh ghép trong ảnh gốc (đã crop)
+        final double pieceX = sourceCropX + (c * pieceWidthInSource);
+        final double pieceY = sourceCropY + (r * pieceHeightInSource);
+        final srcRect = Rect.fromLTWH(
+            pieceX, pieceY, pieceWidthInSource, pieceHeightInSource);
+
+        final bool isSpecialPiece = (r == 0 &&
+            c == 0 &&
+            imageId <= 5); // Logic mảnh đặc biệt giữ nguyên
         final type =
             isSpecialPiece ? PuzzlePieceType.special : PuzzlePieceType.normal;
-
-        final rect = Rect.fromLTWH(c * cellW, r * cellH, cellW, cellH);
 
         pieces.add(PuzzlePiece(
           id: '${imageId}_${r}_${c}',
@@ -48,8 +77,9 @@ class PuzzleService {
           imageId: imageId,
           row: r,
           col: c,
-          position: rect,
+          position: srcRect, // Vị trí trong ảnh gốc
           type: type,
+          // collected không cần set ở đây, sẽ được quản lý bởi GameService
         ));
       }
     }

@@ -4,8 +4,8 @@ import '../services/game_service.dart';
 import '../providers/lang_provider.dart';
 import '../utils/constants.dart';
 import '../screens/shop_screen.dart';
+import '../screens/puzzle_gallery_screen.dart';
 
-// --- WIDGET MỚI: TẠO HIỆU ỨNG ĐẾM SỐ ---
 class AnimatedCount extends StatefulWidget {
   final int count;
   final TextStyle? style;
@@ -26,7 +26,6 @@ class _AnimatedCountState extends State<AnimatedCount>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<int> _animation;
-  // Lưu lại giá trị trước đó để biết đếm từ đâu
   int _previousCount = 0;
 
   @override
@@ -36,14 +35,12 @@ class _AnimatedCountState extends State<AnimatedCount>
     _controller = AnimationController(duration: widget.duration, vsync: this);
     _animation = IntTween(begin: _previousCount, end: widget.count)
         .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    // Chạy animation khi widget được tạo lần đầu
     _controller.forward();
   }
 
   @override
   void didUpdateWidget(AnimatedCount oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Nếu giá trị mới khác giá trị cũ, chạy lại animation
     if (widget.count != oldWidget.count) {
       _previousCount = oldWidget.count;
       _animation = IntTween(begin: _previousCount, end: widget.count)
@@ -63,14 +60,12 @@ class _AnimatedCountState extends State<AnimatedCount>
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        // Build lại Text với giá trị mới từ animation
         return Text(_animation.value.toString(), style: widget.style);
       },
     );
   }
 }
 
-// --- WIDGET TOP STATUS BAR (ĐÃ ĐƯỢC NÂNG CẤP) ---
 class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
   final bool showShopButton;
@@ -92,7 +87,6 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
 
-    // Lấy style mặc định của AppBar để truyền vào widget AnimatedCount
     final textStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.w500,
@@ -100,7 +94,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       backgroundColor: Colors.pinkAccent,
-      elevation: 4.0, // Thêm đổ bóng cho đẹp hơn
+      elevation: 4.0,
       automaticallyImplyLeading: false,
       leading: showBack
           ? IconButton(
@@ -119,19 +113,15 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
                   fontWeight: FontWeight.bold, color: Colors.white),
             ),
           const Spacer(),
-          // Hiển thị tiền xu
           const Icon(Icons.monetization_on, color: Colors.yellow, size: 24),
           const SizedBox(width: 4),
-          // --- THAY ĐỔI QUAN TRỌNG: SỬ DỤNG AnimatedCount ---
           AnimatedCount(
             count: gs.user.coins,
             style: textStyle,
           ),
           const SizedBox(width: 16),
-          // Hiển thị sao
           const Icon(Icons.star_rounded, color: Colors.amber, size: 26),
           const SizedBox(width: 4),
-          // --- THAY ĐỔI QUAN TRỌNG: SỬ DỤNG AnimatedCount ---
           AnimatedCount(
             count: gs.user.stars,
             style: textStyle,
@@ -142,6 +132,16 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
         IconButton(
           icon: const Icon(Icons.language, color: Colors.white),
           onPressed: () => lang.toggle(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.extension, color: Colors.white),
+          tooltip: t['view_puzzles'] ?? 'View Puzzles',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PuzzleGalleryScreen()),
+            );
+          },
         ),
         if (showShopButton)
           IconButton(
