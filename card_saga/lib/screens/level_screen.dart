@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

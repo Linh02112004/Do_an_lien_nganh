@@ -4,52 +4,74 @@ import '../models/level.dart';
 class LevelGenerator {
   final Random _rng = Random();
 
+  final int minPairs = 2;
+  final int maxPairs = 15;
+
   Level firstLevel() {
-    // Bắt đầu với 3 cặp (6 card), 100s
+    int initialPairs = 3;
+    while ((initialPairs * 2) % 3 != 0 && (initialPairs * 2) % 4 != 0) {
+      initialPairs++;
+    }
+    initialPairs = initialPairs.clamp(minPairs, maxPairs);
+
     return Level(
       id: 1,
-      pairCount: 3,
-      timeLimit: 100,
+      pairCount: initialPairs,
+      timeLimit: (initialPairs * 15).clamp(0, 200),
       unlocked: true,
     );
   }
 
-  // Sinh level tiếp theo dựa trên level trước
   Level generateNext(Level last) {
-    int nextPair = last.pairCount;
-    int nextTime = last.timeLimit;
+    int currentPair = last.pairCount;
+    int pairChange = 0;
 
-    const List<int> badPairCounts = [5, 7, 11, 13, 14, 17, 19];
-    bool pairCountIncreased = false;
+    double randomValue = _rng.nextDouble();
 
-    if (last.pairCount < 20) {
-      if (_rng.nextDouble() < 0.15) {
-        nextPair = last.pairCount + 1;
-        while (badPairCounts.contains(nextPair)) {
-          nextPair++;
+    // Xác suất thay đổi số cặp thẻ
+    if (randomValue < 0.5) {
+      pairChange = 1;
+    } else if (randomValue < 0.5) {
+      pairChange = -1;
+    }
+
+    int tentativeNextPair =
+        (currentPair + pairChange).clamp(minPairs, maxPairs);
+    int finalNextPair = tentativeNextPair;
+    int totalCards = finalNextPair * 2;
+    bool fitsGridWell = (totalCards % 3 == 0) || (totalCards % 4 == 0);
+
+    if (!fitsGridWell) {
+      int increasedPair = tentativeNextPair + 1;
+      if (increasedPair <= maxPairs) {
+        int increasedTotalCards = increasedPair * 2;
+        if ((increasedTotalCards % 3 == 0) || (increasedTotalCards % 4 == 0)) {
+          finalNextPair = increasedPair;
+          fitsGridWell = true;
         }
-        if (nextPair > 20) nextPair = 20;
-        if (nextPair != last.pairCount) {
-          pairCountIncreased = true;
+      }
+
+      if (!fitsGridWell) {
+        int decreasedPair = tentativeNextPair - 1;
+        if (decreasedPair >= minPairs) {
+          int decreasedTotalCards = decreasedPair * 2;
+          if ((decreasedTotalCards % 3 == 0) ||
+              (decreasedTotalCards % 4 == 0)) {
+            finalNextPair = decreasedPair;
+            fitsGridWell = true;
+          }
         }
+      }
+      if (!fitsGridWell) {
+        finalNextPair = tentativeNextPair;
       }
     }
 
-    int reduce = 2 + _rng.nextInt(3);
-
-    if (!pairCountIncreased) {
-      nextTime = last.timeLimit - reduce;
-    } else if (_rng.nextDouble() < 0.2) {
-      nextTime = last.timeLimit - reduce;
-    }
-
-    int minTime = (nextPair * 10).clamp(40, 200); // 10s/cặp, sàn 40s
-
-    nextTime = max(minTime, nextTime);
+    int nextTime = (finalNextPair * 15).clamp(0, 200);
 
     return Level(
       id: last.id + 1,
-      pairCount: nextPair,
+      pairCount: finalNextPair,
       timeLimit: nextTime,
       unlocked: false,
     );

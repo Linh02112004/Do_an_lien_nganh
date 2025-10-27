@@ -307,7 +307,6 @@ class GameService extends ChangeNotifier {
         .forEach((themeToUnlock) {
       if (user.stars >= themeToUnlock.requiredStars) {
         unlockTheme(themeToUnlock.id);
-        // Có thể thêm thông báo cho người dùng tại đây
       }
     });
 
