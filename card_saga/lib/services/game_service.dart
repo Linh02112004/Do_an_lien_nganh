@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/level.dart';
 import '../models/user.dart';
 import '../models/item.dart';
+import '../models/theme.dart';
 import '../models/puzzle_piece.dart';
 import '../services/level_generator.dart';
 import '../services/puzzle_service.dart';
@@ -27,6 +29,17 @@ class GameService extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   bool _isGeneratingMore = false;
+  // Quản lý Theme
+  List<GameTheme> _availableThemes = [];
+  List<GameTheme> get availableThemes => _availableThemes;
+
+  String _currentThemeId = 'default';
+  GameTheme get currentTheme =>
+      _availableThemes.firstWhere((t) => t.id == _currentThemeId,
+          orElse: () => _availableThemes.first);
+
+  List<String> _unlockedThemeIds = ['default'];
+  List<String> get unlockedThemeIds => _unlockedThemeIds;
 
   final List<String> biomeOrder = [
     'emoji',
@@ -47,19 +60,72 @@ class GameService extends ChangeNotifier {
   GameService() {
     levels.add(_gen.firstLevel());
     generateMoreLevels(4);
-    _initPuzzles();
+    _initializeGameData();
   }
 
-  Future<void> _initPuzzles() async {
+  Future<void> _initializeGameData() async {
+    _isLoading = true;
+    notifyListeners();
     try {
       await puzzleService.loadPuzzles();
       await _loadDecorationAssets();
+      await _loadThemes();
     } catch (e) {
-      debugPrint('Lỗi khi khởi tạo service: $e');
+      debugPrint('Lỗi khi khởi tạo dữ liệu game: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _loadThemes() async {
+    final manifestJson = await rootBundle.loadString('AssetManifest.json');
+    final Map<String, dynamic> manifestMap = json.decode(manifestJson);
+    final allAssetPaths = manifestMap.keys.toList();
+
+    final emojiPaths =
+        allAssetPaths.where((p) => p.startsWith('assets/imgs/emoji/')).toList();
+    final fruitPaths = allAssetPaths
+        .where((p) => p.startsWith('assets/imgs/fruit_vegetables/'))
+        .toList();
+    final defaultPaths = emojiPaths.isNotEmpty
+        ? emojiPaths.sublist(0, (emojiPaths.length / 2).ceil())
+        : <String>[];
+
+    _availableThemes = [
+      GameTheme(
+        id: 'default',
+        nameKey: 'theme_default',
+        requiredStars: 0,
+        isDefault: true,
+        cardImagePaths: defaultPaths,
+        puzzleImageIds: [1, 2],
+      ),
+      GameTheme(
+        id: 'emoji',
+        nameKey: 'theme_emoji',
+        requiredStars: 15,
+        cardImagePaths: emojiPaths,
+        puzzleImageIds: [3, 4, 5],
+      ),
+      GameTheme(
+        id: 'fruits',
+        nameKey: 'theme_fruits',
+        requiredStars: 40,
+        cardImagePaths: fruitPaths,
+        puzzleImageIds: [6, 7, 8, 9, 10],
+      ),
+      // Thêm các theme khác nếu có...
+    ];
+
+    _unlockedThemeIds =
+        _availableThemes.where((t) => t.isDefault).map((t) => t.id).toList();
+
+    _currentThemeId = _availableThemes
+        .firstWhere((t) => t.isDefault, orElse: () => _availableThemes.first)
+        .id;
+
+    debugPrint('Themes đã được tải: ${_availableThemes.length} themes.');
   }
 
   Future<void> _loadDecorationAssets() async {
@@ -89,14 +155,58 @@ class GameService extends ChangeNotifier {
     }
   }
 
-  List<String> getAssetsForLevel(int levelId) {
+  List<String> getDecorationAssetsForLevel(int levelId) {
     final int biomeIndex = (levelId - 1) ~/ biomeSize;
-
     if (biomeOrder.isEmpty) return [];
-
     final String biomeName = biomeOrder[biomeIndex % biomeOrder.length];
-
     return decorationAssetsByBiome[biomeName] ?? [];
+  }
+
+  List<String> getCardAssetsForCurrentTheme() {
+    final theme = currentTheme;
+    if (theme.cardImagePaths.isEmpty) {
+      debugPrint("Cảnh báo: Theme '${theme.id}' không có ảnh thẻ nào.");
+      return ['assets/imgs/placeholder.png'];
+    }
+    return List<String>.from(theme.cardImagePaths);
+  }
+
+  void setCurrentTheme(String themeId) {
+    if (_unlockedThemeIds.contains(themeId) &&
+        _availableThemes.any((t) => t.id == themeId)) {
+      _currentThemeId = themeId;
+      debugPrint("Đã chuyển sang theme: $_currentThemeId");
+      notifyListeners();
+    } else {
+      debugPrint(
+          "Không thể chuyển sang theme '$themeId': Chưa mở khóa hoặc không tồn tại.");
+    }
+  }
+
+  bool isThemeUnlocked(String themeId) {
+    return _unlockedThemeIds.contains(themeId);
+  }
+
+  bool unlockTheme(String themeId) {
+    final theme = _availableThemes.firstWhereOrNull((t) => t.id == themeId);
+    if (theme == null) {
+      debugPrint("Theme '$themeId' không tồn tại.");
+      return false;
+    }
+    if (isThemeUnlocked(themeId)) {
+      debugPrint("Theme '$themeId' đã được mở khóa rồi.");
+      return true;
+    }
+    if (user.stars >= theme.requiredStars) {
+      _unlockedThemeIds.add(themeId);
+      debugPrint("Đã mở khóa theme: '$themeId'");
+      notifyListeners();
+      return true;
+    } else {
+      debugPrint(
+          "Không đủ sao để mở khóa theme '$themeId'. Cần ${theme.requiredStars}, đang có ${user.stars}");
+      return false;
+    }
   }
 
   final List<Item> shopItems = [
@@ -110,11 +220,6 @@ class GameService extends ChangeNotifier {
         name: "Double Coins (3 levels)",
         type: ItemType.doubleCoins,
         price: 80),
-    Item(
-        id: "piece",
-        name: "World Piece",
-        type: ItemType.worldPiece,
-        price: 120),
   ];
 
   void addCoins(int c) {
@@ -196,6 +301,15 @@ class GameService extends ChangeNotifier {
       }
       unlockNext(id);
     }
+
+    _availableThemes
+        .where((t) => !isThemeUnlocked(t.id))
+        .forEach((themeToUnlock) {
+      if (user.stars >= themeToUnlock.requiredStars) {
+        unlockTheme(themeToUnlock.id);
+        // Có thể thêm thông báo cho người dùng tại đây
+      }
+    });
 
     final List<PuzzlePiece> dropped = puzzleService.dropRandomPieces();
     final List<PuzzlePiece> milestones =

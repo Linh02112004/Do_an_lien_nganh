@@ -126,7 +126,7 @@ class _MapScreenState extends State<MapScreen> {
         final int levelAtTop = (randomTop / verticalGap).toInt() + 1;
 
         final List<String> assetsForThisBiome =
-            gs.getAssetsForLevel(levelAtTop);
+            gs.getDecorationAssetsForLevel(levelAtTop);
 
         if (assetsForThisBiome.isNotEmpty) {
           _generatedDecorations.add({

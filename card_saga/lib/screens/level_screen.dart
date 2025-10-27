@@ -55,7 +55,7 @@ class _LevelScreenState extends State<LevelScreen> {
 
     // Lấy danh sách ảnh cho biome của level này
     final List<String> availableAssets =
-        gameService.getAssetsForLevel(widget.level.id);
+        gameService.getCardAssetsForCurrentTheme();
 
     // Xử lý trường hợp không có đủ ảnh
     if (availableAssets.length < pairCount) {

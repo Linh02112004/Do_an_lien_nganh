@@ -31,6 +31,19 @@ class Strings {
     'milestone_reward': '⭐ SPECIAL REWARD ⭐',
     'better_luck': 'Better luck next time!',
     'level_failed': 'You did not complete this level.',
+    'theme_default': 'Default',
+    'theme_emoji': 'Emoji',
+    'theme_fruits': 'Fruits & Vegetables',
+    'shop_themes_title': 'Themes',
+    'unlock': 'Unlock',
+    'unlocked': 'Unlocked',
+    'view_puzzles': 'View Puzzles',
+    'puzzle_gallery_title': 'Puzzle Gallery',
+    'save_image': 'Save Image',
+    'save_image_success': 'Image saved successfully!',
+    'save_image_failed': 'Failed to save image.',
+    'permission_denied': 'Storage permission denied.',
+    'puzzle_complete': 'Puzzle Complete!',
   };
 
   static const vi = {
@@ -57,5 +70,18 @@ class Strings {
     'milestone_reward': '⭐ PHẦN THƯỞNG ĐẶC BIỆT ⭐',
     'better_luck': 'Chúc bạn may mắn lần sau!',
     'level_failed': 'Bạn đã không hoàn thành ải này.',
+    'theme_default': 'Mặc định',
+    'theme_emoji': 'Biểu cảm',
+    'theme_fruits': 'Trái cây & Rau củ',
+    'shop_themes_title': 'Chủ đề',
+    'unlock': 'Mở khóa',
+    'unlocked': 'Đã mở khóa',
+    'view_puzzles': 'Xem Tranh Ghép',
+    'puzzle_gallery_title': 'Bộ sưu tập Tranh',
+    'save_image': 'Lưu ảnh',
+    'save_image_success': 'Đã lưu ảnh thành công!',
+    'save_image_failed': 'Lưu ảnh thất bại.',
+    'permission_denied': 'Quyền truy cập bộ nhớ bị từ chối.',
+    'puzzle_complete': 'Đã hoàn thành tranh!',
   };
 }
