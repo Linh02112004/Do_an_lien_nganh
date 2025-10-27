@@ -31,6 +31,7 @@ class _LevelScreenState extends State<LevelScreen> {
   bool _gameOver = false;
   bool _gameWon = false;
   bool _isFrozen = false;
+  Timer? _freezeTimer;
   int _freezeCountThisLevel = 0;
   bool _isChecking = false;
 
@@ -49,47 +50,39 @@ class _LevelScreenState extends State<LevelScreen> {
   }
 
   void _generateCards() {
-    // Lấy GameService từ Provider
     final gameService = Provider.of<GameService>(context, listen: false);
     final int pairCount = widget.level.pairCount;
 
-    // Lấy danh sách ảnh cho biome của level này
     final List<String> availableAssets =
         gameService.getCardAssetsForCurrentTheme();
 
-    // Xử lý trường hợp không có đủ ảnh
     if (availableAssets.length < pairCount) {
-      // Có thể hiển thị lỗi, hoặc dùng ảnh mặc định, hoặc lặp lại ảnh
       print(
           "Lỗi: Không đủ ảnh trong biome cho level ${widget.level.id}. Cần $pairCount, có ${availableAssets.length}");
-      // Tạm thời dùng lại logic cũ để tránh crash
       final List<String> pool = [];
       for (int i = 0; i < pairCount; i++) {
-        pool.add("?"); // Ký tự thay thế khi thiếu ảnh
+        pool.add("?");
         pool.add("?");
       }
       pool.shuffle(Random());
       _cards = pool;
     } else {
-      // Chọn ngẫu nhiên 'pairCount' ảnh từ danh sách
       availableAssets.shuffle(Random());
       final List<String> selectedImagePaths =
           availableAssets.sublist(0, pairCount);
 
-      // Tạo danh sách thẻ bài với các cặp đường dẫn ảnh
       final List<String> pool = [];
       for (String imagePath in selectedImagePaths) {
         pool.add(imagePath);
         pool.add(imagePath);
       }
       pool.shuffle(Random());
-      _cards = pool; // Gán danh sách đường dẫn ảnh đã xáo trộn
+      _cards = pool;
     }
 
     _completed = [];
     _selected = [];
 
-    // Cần gọi setState để cập nhật UI sau khi _cards được tạo
     setState(() {});
   }
 
@@ -100,7 +93,10 @@ class _LevelScreenState extends State<LevelScreen> {
         t.cancel();
         return;
       }
-      if (_isFrozen) return;
+      if (_isFrozen) {
+        return;
+      }
+
       if (_timeLeft <= 0) {
         final langProvider = Provider.of<LangProvider>(context, listen: false);
         final langMap =
@@ -113,26 +109,43 @@ class _LevelScreenState extends State<LevelScreen> {
   }
 
   void _activateFreezeTime(GameService gs, Map<String, String> t) {
+    if (_isFrozen) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                t['freeze_already_active'] ?? "Freeze is already active!")),
+      );
+      return;
+    }
+
     if (_freezeCountThisLevel >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(t['max_freeze'] ?? "Max 5 freezes per level!")),
       );
       return;
     }
-    final ok = gs.useItem("freeze");
-    if (!ok) {
+    final bool itemUsed = gs.useItem("freeze");
+    if (!itemUsed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t['not_enough_coins'] ?? "No item")),
+        SnackBar(
+          content: Text(t['not_enough_items'] ?? "No freeze items left!"),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
+
     _freezeCountThisLevel++;
     setState(() => _isFrozen = true);
-    Future.delayed(const Duration(seconds: 20), () {
+
+    _freezeTimer?.cancel();
+
+    _freezeTimer = Timer(const Duration(seconds: 20), () {
       if (mounted) {
         setState(() => _isFrozen = false);
       }
     });
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.blueAccent,
@@ -142,19 +155,22 @@ class _LevelScreenState extends State<LevelScreen> {
   }
 
   void _activateDoubleCoins(GameService gs, Map<String, String> t) {
-    final ok = gs.useItem("double");
-    if (!ok) {
+    final bool itemUsed = gs.useItem("double");
+    if (!itemUsed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t['not_enough_coins'] ?? "No item")),
+        SnackBar(
+          content: Text(t['not_enough_items'] ?? "No double coin items left!"),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.orangeAccent,
-        content: Text(t['double_used'] ?? "Double Coins for next 3 plays!"),
-      ),
-    );
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: Colors.orangeAccent,
+      content: Text(
+          "${t['double_used'] ?? "Double Coins activated!"} ${t['plays_left'] ?? 'Plays left'}: ${gs.doubleCoinsPlaysLeft}"),
+    ));
   }
 
   void _onCardTap(int index) {
@@ -165,14 +181,12 @@ class _LevelScreenState extends State<LevelScreen> {
       return;
     }
 
-    // Nếu mới chọn 1 thẻ
     if (_selected.length < 2) {
       setState(() {
         _selected.add(index);
       });
     }
 
-    // Nếu đã chọn đủ 2 thẻ
     if (_selected.length == 2) {
       _isChecking = true;
       final int a = _selected[0];
@@ -182,20 +196,16 @@ class _LevelScreenState extends State<LevelScreen> {
         if (!mounted) return;
 
         setState(() {
-          // Kiểm tra xem 2 thẻ có khớp không
           if (_cards[a] == _cards[b]) {
-            // KHỚP: Thêm chúng vào danh sách _completed
             _completed.add(a);
             _completed.add(b);
           }
 
-          // Dù khớp hay không, xóa 2 thẻ khỏi _selected
           _selected.clear();
 
           _isChecking = false;
         });
 
-        // Kiểm tra thắng
         if (_completed.length == _cards.length) {
           final langProvider =
               Provider.of<LangProvider>(context, listen: false);
@@ -372,6 +382,7 @@ class _LevelScreenState extends State<LevelScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _freezeTimer?.cancel();
     super.dispose();
   }
 
@@ -400,41 +411,64 @@ class _LevelScreenState extends State<LevelScreen> {
       ),
       body: Column(
         children: [
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildItemButton(
-                icon: Icons.ac_unit,
-                label: lang['freeze'] ?? "Freeze",
-                color: Colors.blueAccent,
-                count: gs.user.inventory["freeze"]?.owned ?? 0,
-                onTap: () => _activateFreezeTime(gs, lang),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 24),
-              _buildItemButton(
-                icon: Icons.monetization_on,
-                label: lang['double'] ?? "Double",
-                color: Colors.orangeAccent,
-                count: gs.user.inventory["double"]?.owned ?? 0,
-                onTap: () => _activateDoubleCoins(gs, lang),
-              ),
-            ],
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.centerRight,
-            child: Text(
-              "⏰ $_timeLeft s",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: _isFrozen ? Colors.blue : Colors.red,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildItemButton(
+                        icon: Icons.ac_unit,
+                        label: lang['freeze'] ?? "Freeze",
+                        color: Colors.blueAccent,
+                        count: gs.user.inventory["freeze"]?.owned ?? 0,
+                        onTap: () => _activateFreezeTime(gs, lang),
+                      ),
+                      const SizedBox(width: 16),
+                      _buildItemButton(
+                        icon: Icons.monetization_on,
+                        label: lang['double'] ?? "Double",
+                        color: Colors.orangeAccent,
+                        count: gs.user.inventory["double"]?.owned ?? 0,
+                        onTap: () => _activateDoubleCoins(gs, lang),
+                      ),
+                    ],
+                  ),
+
+                  // Timer
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        color: _isFrozen
+                            ? Colors.blue.shade700
+                            : Colors.red.shade700,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "$_timeLeft s",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _isFrozen
+                              ? Colors.blue.shade700
+                              : Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -472,32 +506,59 @@ class _LevelScreenState extends State<LevelScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final gs = context.read<GameService>();
+    final bool canUse =
+        (gs.user.inventory[label.toLowerCase()]?.owned ?? 0) > 0;
+
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Stack(
+          clipBehavior: Clip.none,
           children: [
-            IconButton(
-              icon: Icon(icon, color: color, size: 36),
-              onPressed: onTap,
+            Container(
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: Icon(icon, color: color, size: 30),
+                onPressed: (label == (Strings.en['freeze'] ?? "Freeze") ||
+                            label == (Strings.vi['freeze'] ?? "Freeze")) &&
+                        _isFrozen
+                    ? null
+                    : canUse
+                        ? onTap
+                        : null,
+                tooltip: label,
+              ),
             ),
             Positioned(
-              right: 0,
-              bottom: 0,
+              right: -2,
+              top: -2,
               child: Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
+                  color: Colors.redAccent,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 18,
+                  minHeight: 18,
                 ),
                 child: Text(
-                  "x$count",
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  "$count",
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
                 ),
               ),
             )
           ],
         ),
-        Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }
