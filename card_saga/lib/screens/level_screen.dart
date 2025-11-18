@@ -8,7 +8,6 @@ import '../widgets/card_tile.dart';
 import '../services/game_service.dart';
 import '../utils/constants.dart';
 import '../models/level.dart';
-import '../models/puzzle_piece.dart';
 import '../providers/lang_provider.dart';
 import '../widgets/top_status_bar.dart';
 
@@ -28,7 +27,6 @@ class _LevelScreenState extends State<LevelScreen> {
   Timer? _timer;
   int _timeLeft = 0;
   bool _gameOver = false;
-  bool _gameWon = false;
   bool _isFrozen = false;
   Timer? _freezeTimer;
   int _freezeCountThisLevel = 0;
@@ -221,7 +219,6 @@ class _LevelScreenState extends State<LevelScreen> {
     _timer?.cancel();
     setState(() {
       _gameOver = true;
-      _gameWon = won;
     });
 
     if (!won) {
@@ -407,6 +404,8 @@ class _LevelScreenState extends State<LevelScreen> {
         title: "${lang['start'] ?? 'Start'} ${widget.level.id}",
         showBack: true,
         showShopButton: false,
+        showGalleryButton: false,
+        showCoinsAndStars: true,
       ),
       body: Column(
         children: [

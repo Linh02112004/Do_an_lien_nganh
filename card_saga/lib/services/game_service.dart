@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
@@ -11,6 +10,7 @@ import '../models/theme.dart';
 import '../models/puzzle_piece.dart';
 import '../services/level_generator.dart';
 import '../services/puzzle_service.dart';
+import '../models/puzzle_image.dart';
 
 class LevelCompletionResult {
   final List<PuzzlePiece> droppedPieces;
@@ -33,17 +33,30 @@ class GameService extends ChangeNotifier {
   List<GameTheme> _availableThemes = [];
   List<GameTheme> get availableThemes => _availableThemes;
 
-  String _currentThemeId = 'default';
+  String _currentThemeId = 'emoji';
   GameTheme get currentTheme =>
       _availableThemes.firstWhere((t) => t.id == _currentThemeId,
           orElse: () => _availableThemes.first);
 
-  List<String> _unlockedThemeIds = ['default'];
+  List<String> _unlockedThemeIds = ['emoji'];
   List<String> get unlockedThemeIds => _unlockedThemeIds;
+
+  // Lấy danh sách các PuzzleImage đã được mở khóa dựa trên theme
+  List<PuzzleImage> get unlockedPuzzles {
+    final unlockedPuzzleIds = _availableThemes
+        .where((theme) => _unlockedThemeIds.contains(theme.id))
+        .expand((theme) => theme.puzzleImageIds)
+        .toSet();
+
+    return puzzleService.puzzles
+        .where((puzzle) => unlockedPuzzleIds.contains(puzzle.id))
+        .toList();
+  }
 
   final List<String> biomeOrder = [
     'emoji',
     'fruit_vegetables',
+    'food',
   ];
 
   static const int biomeSize = 10;
@@ -88,32 +101,31 @@ class GameService extends ChangeNotifier {
     final fruitPaths = allAssetPaths
         .where((p) => p.startsWith('assets/imgs/fruit_vegetables/'))
         .toList();
-    final defaultPaths = emojiPaths.isNotEmpty
-        ? emojiPaths.sublist(0, (emojiPaths.length / 2).ceil())
-        : <String>[];
+    final foodPaths =
+        allAssetPaths.where((p) => p.startsWith('assets/imgs/food/')).toList();
 
     _availableThemes = [
       GameTheme(
-        id: 'default',
-        nameKey: 'theme_default',
-        requiredStars: 0,
-        isDefault: true,
-        cardImagePaths: defaultPaths,
-        puzzleImageIds: [1, 2],
-      ),
-      GameTheme(
         id: 'emoji',
         nameKey: 'theme_emoji',
-        requiredStars: 15,
+        requiredStars: 0,
+        isDefault: true,
         cardImagePaths: emojiPaths,
-        puzzleImageIds: [3, 4, 5],
+        puzzleImageIds: [1, 2],
       ),
       GameTheme(
         id: 'fruits',
         nameKey: 'theme_fruits',
-        requiredStars: 40,
+        requiredStars: 15,
         cardImagePaths: fruitPaths,
-        puzzleImageIds: [6, 7, 8, 9, 10],
+        puzzleImageIds: [3, 4],
+      ),
+      GameTheme(
+        id: 'food',
+        nameKey: 'theme_food',
+        requiredStars: 30,
+        cardImagePaths: foodPaths,
+        puzzleImageIds: [5, 6],
       ),
       // Thêm các theme khác nếu có...
     ];
@@ -197,9 +209,11 @@ class GameService extends ChangeNotifier {
       debugPrint("Theme '$themeId' đã được mở khóa rồi.");
       return true;
     }
-    if (user.stars >= theme.requiredStars) {
+    if (user.stars >= theme.requiredStars &&
+        !_unlockedThemeIds.contains(themeId)) {
+      user.stars -= theme.requiredStars;
+
       _unlockedThemeIds.add(themeId);
-      debugPrint("Đã mở khóa theme: '$themeId'");
       notifyListeners();
       return true;
     } else {
@@ -310,7 +324,15 @@ class GameService extends ChangeNotifier {
       }
     });
 
-    final List<PuzzlePiece> dropped = puzzleService.dropRandomPieces();
+    // 1. Lấy danh sách ID puzzle từ các theme đã mở khóa
+    final unlockedPuzzleIds = _availableThemes
+        .where((theme) => _unlockedThemeIds.contains(theme.id))
+        .expand((theme) => theme.puzzleImageIds)
+        .toSet();
+
+    // 2. Truyền danh sách ID này vào hàm dropRandomPieces
+    final List<PuzzlePiece> dropped =
+        puzzleService.dropRandomPieces(allowedPuzzleIds: unlockedPuzzleIds);
     final List<PuzzlePiece> milestones =
         _checkStarMilestones(oldTotalStars, user.stars);
 

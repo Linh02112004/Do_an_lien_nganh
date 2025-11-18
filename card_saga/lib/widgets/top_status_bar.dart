@@ -70,12 +70,16 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
   final bool showShopButton;
   final bool showBack;
+  final bool showGalleryButton;
+  final bool showCoinsAndStars;
 
   const TopStatusBar({
     super.key,
     this.title,
     this.showShopButton = true,
     this.showBack = false,
+    this.showGalleryButton = true,
+    this.showCoinsAndStars = true,
   });
 
   @override
@@ -113,39 +117,44 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
                   fontWeight: FontWeight.bold, color: Colors.white),
             ),
           const Spacer(),
-          const Icon(Icons.monetization_on, color: Colors.yellow, size: 24),
-          const SizedBox(width: 4),
-          AnimatedCount(
-            count: gs.user.coins,
-            style: textStyle,
-          ),
-          const SizedBox(width: 16),
-          const Icon(Icons.star_rounded, color: Colors.amber, size: 26),
-          const SizedBox(width: 4),
-          AnimatedCount(
-            count: gs.user.stars,
-            style: textStyle,
-          ),
+          if (showCoinsAndStars) ...[
+            const Icon(Icons.monetization_on, color: Colors.yellow, size: 24),
+            const SizedBox(width: 4),
+            AnimatedCount(
+              count: gs.user.coins,
+              style: textStyle,
+            ),
+            const SizedBox(width: 16),
+            const Icon(Icons.star_rounded, color: Colors.amber, size: 26),
+            const SizedBox(width: 4),
+            AnimatedCount(
+              count: gs.user.stars,
+              style: textStyle,
+            ),
+          ],
         ],
       ),
       actions: [
         IconButton(
           icon: const Icon(Icons.language, color: Colors.white),
+          tooltip: t['change_language'] ?? 'Change Language',
           onPressed: () => lang.toggle(),
         ),
-        IconButton(
-          icon: const Icon(Icons.extension, color: Colors.white),
-          tooltip: t['view_puzzles'] ?? 'View Puzzles',
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const PuzzleGalleryScreen()),
-            );
-          },
-        ),
+        if (showGalleryButton)
+          IconButton(
+            icon: const Icon(Icons.extension, color: Colors.white),
+            tooltip: t['view_puzzles'] ?? 'View Puzzles',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PuzzleGalleryScreen()),
+              );
+            },
+          ),
         if (showShopButton)
           IconButton(
             icon: const Icon(Icons.store, color: Colors.white),
+            tooltip: t['view_shop'] ?? 'View Shop',
             onPressed: () {
               Navigator.push(
                 context,

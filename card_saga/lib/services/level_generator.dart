@@ -29,10 +29,12 @@ class LevelGenerator {
     double randomValue = _rng.nextDouble();
 
     // Xác suất thay đổi số cặp thẻ
-    if (randomValue < 0.5) {
-      pairChange = 1;
-    } else if (randomValue < 0.5) {
-      pairChange = -1;
+    if (randomValue < 0.3) {
+      pairChange = 1; // 30% tăng
+    } else if (randomValue < 0.9) {
+      // 60% giữ nguyên
+    } else {
+      pairChange = -1; // 10% giảm
     }
 
     int tentativeNextPair =

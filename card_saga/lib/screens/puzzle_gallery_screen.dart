@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/game_service.dart';
-import '../services/puzzle_service.dart'; // Cần import PuzzleService
-import '../models/puzzle_image.dart'; // Cần import PuzzleImage
 import '../widgets/top_status_bar.dart';
 import '../providers/lang_provider.dart';
 import '../utils/constants.dart';
-import 'puzzle_screen.dart'; // Màn hình ghép hình sẽ tạo ở Bước 3
+import 'puzzle_screen.dart';
 
 class PuzzleGalleryScreen extends StatelessWidget {
   const PuzzleGalleryScreen({super.key});
@@ -15,17 +13,17 @@ class PuzzleGalleryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
-    final puzzleService = context.watch<GameService>().puzzleService;
-    final userPieces = context.watch<GameService>().user.puzzlePieces;
-
-    // Lấy danh sách các PuzzleImage có sẵn
-    final allPuzzles = puzzleService.puzzles;
+    final gameService = context.watch<GameService>();
+    final allPuzzles = gameService.unlockedPuzzles;
+    final userPieces = gameService.user.puzzlePieces;
 
     return Scaffold(
       appBar: TopStatusBar(
         title: t['puzzle_gallery_title'] ?? 'Puzzle Gallery',
         showBack: true,
-        showShopButton: true,
+        showShopButton: false,
+        showGalleryButton: false,
+        showCoinsAndStars: false,
       ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16.0),
@@ -82,7 +80,7 @@ class PuzzleGalleryScreen extends StatelessWidget {
                     color: Colors.black.withOpacity(0.6),
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Text(
-                      '$collectedCount / $totalCount ${isCompleted ? '✅' : ''}',
+                      '$collectedCount / $totalCount ${isCompleted ? '' : ''}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,

@@ -8,7 +8,6 @@ import '../models/puzzle_piece.dart';
 class PuzzleService {
   final List<PuzzleImage> puzzles = [];
   final Random _rnd = Random();
-  static const double targetAspectRatio = 9.0 / 16.0;
 
   Future<void> loadPuzzles() async {
     if (puzzles.isNotEmpty) return;
@@ -16,7 +15,7 @@ class PuzzleService {
       try {
         final path = 'assets/puzzles/$i.jpg';
         final img = await _loadImage(path);
-        final pieces = await _cutImageWithAspectRatio(img, i, path);
+        final pieces = await _cutImageIntoPieces(img, i, path);
         puzzles.add(PuzzleImage(id: i, fullImagePath: path, pieces: pieces));
       } catch (e) {
         debugPrint("Error loading puzzle $i: $e");
@@ -24,76 +23,73 @@ class PuzzleService {
     }
   }
 
-  Future<List<PuzzlePiece>> _cutImageWithAspectRatio(
-      ui.Image image, int imageId, String fullPath) async {
+  Future<List<PuzzlePiece>> _cutImageIntoPieces(
+    ui.Image image,
+    int imageId,
+    String fullPath,
+  ) async {
     final pieces = <PuzzlePiece>[];
     final imgWidth = image.width.toDouble();
     final imgHeight = image.height.toDouble();
-    final imgAspectRatio = imgWidth / imgHeight;
+    final double sourceCropWidth = imgWidth;
+    final double sourceCropHeight = imgHeight;
+    const double sourceCropX = 0;
+    const double sourceCropY = 0;
 
-    double sourceCropWidth;
-    double sourceCropHeight;
-    double sourceCropX = 0;
-    double sourceCropY = 0;
-
-    // Xác định vùng ảnh cần cắt (crop) để đúng targetAspectRatio
-    if (imgAspectRatio > targetAspectRatio) {
-      // Ảnh gốc rộng hơn target => Cắt bớt chiều ngang
-      sourceCropWidth = imgHeight * targetAspectRatio;
-      sourceCropHeight = imgHeight;
-      sourceCropX = (imgWidth - sourceCropWidth) / 2.0;
-      sourceCropY = 0;
+    final int rows;
+    final int cols;
+    if (imageId % 2 == 0) {
+      rows = 4;
+      cols = 3;
     } else {
-      // Ảnh gốc cao hơn hoặc bằng target => Cắt bớt chiều dọc
-      sourceCropWidth = imgWidth;
-      sourceCropHeight = imgWidth / targetAspectRatio;
-      sourceCropX = 0;
-      sourceCropY = (imgHeight - sourceCropHeight) / 2.0;
+      rows = 3;
+      cols = 4;
     }
-
-    // Chọn số cột và hàng ngẫu nhiên (có thể giữ nguyên logic cũ)
-    final cols = 3 + _rnd.nextInt(4); // 3 đến 6 cột
-    final rows = 3 + _rnd.nextInt(4); // 3 đến 6 hàng
     final pieceWidthInSource = sourceCropWidth / cols;
     final pieceHeightInSource = sourceCropHeight / rows;
 
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols; c++) {
-        // Tính toán Rect của mảnh ghép trong ảnh gốc (đã crop)
         final double pieceX = sourceCropX + (c * pieceWidthInSource);
         final double pieceY = sourceCropY + (r * pieceHeightInSource);
         final srcRect = Rect.fromLTWH(
-            pieceX, pieceY, pieceWidthInSource, pieceHeightInSource);
+          pieceX,
+          pieceY,
+          pieceWidthInSource,
+          pieceHeightInSource,
+        );
 
-        final bool isSpecialPiece = (r == 0 &&
-            c == 0 &&
-            imageId <= 5); // Logic mảnh đặc biệt giữ nguyên
+        final bool isSpecialPiece = (r == 0 && c == 0 && imageId <= 5);
         final type =
             isSpecialPiece ? PuzzlePieceType.special : PuzzlePieceType.normal;
 
-        pieces.add(PuzzlePiece(
-          id: '${imageId}_${r}_${c}',
-          imagePath: fullPath,
-          imageId: imageId,
-          row: r,
-          col: c,
-          position: srcRect, // Vị trí trong ảnh gốc
-          type: type,
-          // collected không cần set ở đây, sẽ được quản lý bởi GameService
-        ));
+        pieces.add(
+          PuzzlePiece(
+            id: '${imageId}_${r}_${c}',
+            imagePath: fullPath,
+            imageId: imageId,
+            row: r,
+            col: c,
+            position: srcRect,
+            type: type,
+          ),
+        );
       }
     }
     return pieces;
   }
 
   /// Lấy một mảnh ngẫu nhiên (chỉ lấy mảnh thường)
-  PuzzlePiece? getRandomPiece() {
+  PuzzlePiece? getRandomPiece({Set<int>? allowedPuzzleIds}) {
     if (puzzles.isEmpty) return null;
 
-    final availableNormalPieces = puzzles
-        .expand((p) => p.pieces)
-        .where((piece) => !piece.isSpecial && !piece.collected)
-        .toList();
+    final availableNormalPieces =
+        puzzles.expand((p) => p.pieces).where((piece) {
+      final bool isAllowed = allowedPuzzleIds == null ||
+          allowedPuzzleIds.isEmpty ||
+          allowedPuzzleIds.contains(piece.imageId);
+      return isAllowed && !piece.isSpecial && !piece.collected;
+    }).toList();
 
     if (availableNormalPieces.isEmpty) return null;
 
@@ -121,7 +117,7 @@ class PuzzleService {
   }
 
   /// Rơi mảnh puzzle ngẫu nhiên (không hiệu ứng)
-  List<PuzzlePiece> dropRandomPieces() {
+  List<PuzzlePiece> dropRandomPieces({Set<int>? allowedPuzzleIds}) {
     final result = <PuzzlePiece>[];
     final chance = _rnd.nextInt(100);
 
@@ -133,7 +129,7 @@ class PuzzleService {
     }
 
     for (int i = 0; i < piecesToDrop; i++) {
-      final piece = getRandomPiece();
+      final piece = getRandomPiece(allowedPuzzleIds: allowedPuzzleIds);
       if (piece != null) {
         result.add(piece);
       }
@@ -143,7 +139,9 @@ class PuzzleService {
 
   /// Rơi mảnh puzzle ngẫu nhiên (có hiệu ứng)
   Future<void> dropRandomPiecesWithEffect(
-      BuildContext context, List<PuzzlePiece> piecesToDrop) async {
+    BuildContext context,
+    List<PuzzlePiece> piecesToDrop,
+  ) async {
     final overlay = Overlay.of(context, rootOverlay: true);
     if (overlay == null) return;
 
@@ -208,9 +206,10 @@ class _FallingPieceEffectState extends State<_FallingPieceEffect>
       begin: Offset(startX, -1.2),
       end: Offset(startX, 1.4),
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
-    _opacity = Tween<double>(begin: 1, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _opacity = Tween<double>(
+      begin: 1,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _controller.forward();
   }
 
