@@ -211,8 +211,6 @@ class GameService extends ChangeNotifier {
     }
     if (user.stars >= theme.requiredStars &&
         !_unlockedThemeIds.contains(themeId)) {
-      user.stars -= theme.requiredStars;
-
       _unlockedThemeIds.add(themeId);
       notifyListeners();
       return true;
@@ -315,14 +313,6 @@ class GameService extends ChangeNotifier {
       }
       unlockNext(id);
     }
-
-    _availableThemes
-        .where((t) => !isThemeUnlocked(t.id))
-        .forEach((themeToUnlock) {
-      if (user.stars >= themeToUnlock.requiredStars) {
-        unlockTheme(themeToUnlock.id);
-      }
-    });
 
     // 1. Lấy danh sách ID puzzle từ các theme đã mở khóa
     final unlockedPuzzleIds = _availableThemes

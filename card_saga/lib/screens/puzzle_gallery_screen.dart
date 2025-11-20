@@ -27,12 +27,13 @@ class PuzzleGalleryScreen extends StatelessWidget {
       ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16.0),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 250.0,
           crossAxisSpacing: 16.0,
           mainAxisSpacing: 16.0,
           childAspectRatio: 0.8,
         ),
+        // --------------------------------------------------------
         itemCount: allPuzzles.length,
         itemBuilder: (context, index) {
           final puzzle = allPuzzles[index];
@@ -53,8 +54,10 @@ class PuzzleGalleryScreen extends StatelessWidget {
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                      content:
-                          Text('Bạn chưa có mảnh ghép nào cho tranh này!')),
+                    content: Text(t['no_puzzle_pieces'] ??
+                        'You have no piece for this puzzle yet!'),
+                    duration: const Duration(seconds: 1),
+                  ),
                 );
               }
             },

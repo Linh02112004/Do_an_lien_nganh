@@ -47,6 +47,18 @@ class Strings {
     'view_puzzles': 'View Puzzles',
     'puzzle_gallery_title': 'Puzzle Gallery',
     'puzzle_complete': 'Puzzle Complete!',
+    'not_enough_items': 'Not enough items!',
+    'freeze_already_active': 'Freeze is already active!',
+    'double_already_active': 'Double Coins already active!',
+    'plays_left': 'Plays left',
+    'ok': 'OK',
+    'item_freeze': 'Freeze',
+    'item_double': 'Double',
+    'loading_game_data': 'Loading game data...',
+    'level_locked': 'Level is locked',
+    'no_puzzle_pieces': 'You have no piece for this puzzle yet!',
+    'switched_theme': 'Switched theme',
+    'unlock_failed': 'Failed to unlock',
   };
 
   static const vi = {
@@ -89,5 +101,17 @@ class Strings {
     'view_puzzles': 'Xem Tranh Ghép',
     'puzzle_gallery_title': 'Bộ sưu tập Tranh',
     'puzzle_complete': 'Đã hoàn thành tranh!',
+    'not_enough_items': 'Không đủ vật phẩm!',
+    'freeze_already_active': 'Đóng băng đã được kích hoạt!',
+    'double_already_active': 'Nhân đôi Xu đã được kích hoạt!',
+    'plays_left': 'Lượt sử dụng còn lại',
+    'ok': 'OK',
+    'item_freeze': 'Đóng băng',
+    'item_double': 'Nhân đôi',
+    'loading_game_data': 'Đang tải dữ liệu game...',
+    'level_locked': 'Màn chơi đã bị khóa',
+    'no_puzzle_pieces': 'Bạn chưa có mảnh ghép nào cho tranh này!',
+    'switched_theme': 'Đã đổi chủ đề',
+    'unlock_failed': 'Mở khóa thất bại',
   };
 }

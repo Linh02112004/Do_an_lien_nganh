@@ -27,7 +27,6 @@ class PuzzlePiece {
 
   bool get isSpecial => type == PuzzlePieceType.special;
 
-  /// Hiển thị mảnh puzzle được cắt từ ảnh gốc
   Widget buildWidget({
     double size = 80,
     double borderRadius = 10,
@@ -45,12 +44,27 @@ class PuzzlePiece {
 
         final image = snapshot.data!;
         final srcRect = position;
-        final dstRect = Rect.fromLTWH(0, 0, size, size);
+
+        // Tính toán tỷ lệ aspect ratio của mảnh gốc
+        final double srcAspectRatio = srcRect.width / srcRect.height;
+
+        // Tính toán kích thước hiển thị mới, giữ đúng tỷ lệ
+        final double displayWidth;
+        final double displayHeight;
+        if (srcAspectRatio >= 1) {
+          displayWidth = size;
+          displayHeight = size / srcAspectRatio;
+        } else {
+          displayHeight = size;
+          displayWidth = size * srcAspectRatio;
+        }
+
+        final dstRect = Rect.fromLTWH(0, 0, displayWidth, displayHeight);
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
           child: CustomPaint(
-            size: Size(size, size),
+            size: Size(displayWidth, displayHeight),
             painter: _PiecePainter(image, srcRect, dstRect),
           ),
         );

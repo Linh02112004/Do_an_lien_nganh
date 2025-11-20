@@ -13,7 +13,7 @@ import '../widgets/top_status_bar.dart';
 
 class LevelScreen extends StatefulWidget {
   final Level level;
-  const LevelScreen({Key? key, required this.level}) : super(key: key);
+  const LevelScreen({super.key, required this.level});
 
   @override
   State<LevelScreen> createState() => _LevelScreenState();
@@ -27,10 +27,11 @@ class _LevelScreenState extends State<LevelScreen> {
   Timer? _timer;
   int _timeLeft = 0;
   bool _gameOver = false;
+  bool _isChecking = false;
+
   bool _isFrozen = false;
   Timer? _freezeTimer;
-  int _freezeCountThisLevel = 0;
-  bool _isChecking = false;
+  int _freezeCountThisLevel = 0; // giới hạn 5 lần mỗi màn
 
   @override
   void initState() {
@@ -90,6 +91,7 @@ class _LevelScreenState extends State<LevelScreen> {
         t.cancel();
         return;
       }
+
       if (_isFrozen) {
         return;
       }
@@ -105,19 +107,25 @@ class _LevelScreenState extends State<LevelScreen> {
     });
   }
 
+  // hàm kích hoạt đóng băng thời gian
   void _activateFreezeTime(GameService gs, Map<String, String> t) {
     if (_isFrozen) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                t['freeze_already_active'] ?? "Freeze is already active!")),
+          content:
+              Text(t['freeze_already_active'] ?? "Freeze is already active!"),
+          duration: const Duration(seconds: 1),
+        ),
       );
       return;
     }
 
     if (_freezeCountThisLevel >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t['max_freeze'] ?? "Max 5 freezes per level!")),
+        SnackBar(
+          content: Text(t['max_freeze'] ?? "Max 5 freezes per level!"),
+          duration: const Duration(seconds: 1),
+        ),
       );
       return;
     }
@@ -126,6 +134,7 @@ class _LevelScreenState extends State<LevelScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t['not_enough_items'] ?? "No freeze items left!"),
+          duration: const Duration(seconds: 1),
           backgroundColor: Colors.red,
         ),
       );
@@ -137,6 +146,7 @@ class _LevelScreenState extends State<LevelScreen> {
 
     _freezeTimer?.cancel();
 
+    // Hẹn giờ 20s để tắt đóng băng
     _freezeTimer = Timer(const Duration(seconds: 20), () {
       if (mounted) {
         setState(() => _isFrozen = false);
@@ -147,16 +157,29 @@ class _LevelScreenState extends State<LevelScreen> {
       SnackBar(
         backgroundColor: Colors.blueAccent,
         content: Text(t['freeze_used'] ?? "Freeze Time activated for 20s!"),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
 
+  // hàm kích hoạt nhân đôi xu thưởng
   void _activateDoubleCoins(GameService gs, Map<String, String> t) {
+    if (gs.doubleCoinsPlaysLeft > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: Colors.orangeAccent,
+        content: Text(
+            "${t['double_already_active'] ?? "Double Coins already active!"} ${t['plays_left'] ?? 'Plays left'}: ${gs.doubleCoinsPlaysLeft}"),
+        duration: const Duration(seconds: 1),
+      ));
+      return;
+    }
+
     final bool itemUsed = gs.useItem("double");
     if (!itemUsed) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(t['not_enough_items'] ?? "No double coin items left!"),
+          duration: const Duration(seconds: 1),
           backgroundColor: Colors.red,
         ),
       );
@@ -167,6 +190,7 @@ class _LevelScreenState extends State<LevelScreen> {
       backgroundColor: Colors.orangeAccent,
       content: Text(
           "${t['double_used'] ?? "Double Coins activated!"} ${t['plays_left'] ?? 'Plays left'}: ${gs.doubleCoinsPlaysLeft}"),
+      duration: const Duration(seconds: 1),
     ));
   }
 
@@ -217,6 +241,7 @@ class _LevelScreenState extends State<LevelScreen> {
 
   Future<void> _endGame(bool won, Map<String, String> lang) async {
     _timer?.cancel();
+    _freezeTimer?.cancel();
     setState(() {
       _gameOver = true;
     });
@@ -226,16 +251,36 @@ class _LevelScreenState extends State<LevelScreen> {
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
-          title: Text(lang['time_up'] ?? 'Time up!'),
-          content:
-              Text(lang['level_failed'] ?? 'You did not complete this level.'),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.bg,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.sentiment_dissatisfied,
+                  color: Colors.redAccent, size: 30),
+              const SizedBox(width: 8),
+              Text(
+                lang['time_up'] ?? 'Time up!',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(
+            lang['level_failed'] ?? 'You did not complete this level.',
+            textAlign: TextAlign.center,
+          ),
+          actionsAlignment: MainAxisAlignment.center,
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
-              child: const Text("OK"),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              child: Text(lang['ok'] ?? "OK",
+                  style: TextStyle(color: Colors.white)),
             )
           ],
         ),
@@ -265,6 +310,10 @@ class _LevelScreenState extends State<LevelScreen> {
       debugPrint("An error occurred during level completion: $e");
     } finally {
       if (!mounted) return;
+      final bool wasDoubled = gameService.doubleCoinsPlaysLeft > 0 &&
+          gameService.user.inventory["double"]?.owned != null;
+      final int finalCoins = wasDoubled ? (coins * 2) : coins;
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -288,7 +337,7 @@ class _LevelScreenState extends State<LevelScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $coins",
+                  "${lang['stars'] ?? 'Stars'}: $stars ⭐    ${lang['coins'] ?? 'Coins'}: $finalCoins",
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600),
                 ),
@@ -354,25 +403,13 @@ class _LevelScreenState extends State<LevelScreen> {
               },
               style:
                   ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
-              child: const Text("OK", style: TextStyle(color: Colors.white)),
+              child: Text(lang['ok'] ?? "OK",
+                  style: TextStyle(color: Colors.white)),
             )
           ],
         ),
       );
     }
-  }
-
-  Map<String, int> _calculateGridDimensions(int totalCards) {
-    if (totalCards % 4 == 0) {
-      return {'rows': totalCards ~/ 4, 'cols': 4};
-    }
-    if (totalCards % 3 == 0) {
-      return {'rows': totalCards ~/ 3, 'cols': 3};
-    }
-    if (totalCards % 2 == 0) {
-      return {'rows': totalCards ~/ 2, 'cols': 2};
-    }
-    return {'rows': totalCards, 'cols': 1};
   }
 
   @override
@@ -389,9 +426,6 @@ class _LevelScreenState extends State<LevelScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-
-    final gridDims = _calculateGridDimensions(_cards.length);
-    final int numColumns = gridDims['cols']!;
 
     final langProvider = Provider.of<LangProvider>(context);
     final lang =
@@ -410,6 +444,7 @@ class _LevelScreenState extends State<LevelScreen> {
       body: Column(
         children: [
           const SizedBox(height: 12),
+          // thanh hiển thị vật phẩm và thời gian
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
@@ -426,23 +461,23 @@ class _LevelScreenState extends State<LevelScreen> {
                     children: [
                       _buildItemButton(
                         icon: Icons.ac_unit,
-                        label: lang['freeze'] ?? "Freeze",
+                        label: lang['item_freeze'] ?? "Freeze",
                         color: Colors.blueAccent,
                         count: gs.user.inventory["freeze"]?.owned ?? 0,
                         onTap: () => _activateFreezeTime(gs, lang),
+                        isDisabled: _isFrozen,
                       ),
                       const SizedBox(width: 16),
                       _buildItemButton(
                         icon: Icons.monetization_on,
-                        label: lang['double'] ?? "Double",
+                        label: lang['item_double'] ?? "Double",
                         color: Colors.orangeAccent,
                         count: gs.user.inventory["double"]?.owned ?? 0,
                         onTap: () => _activateDoubleCoins(gs, lang),
+                        isDisabled: gs.doubleCoinsPlaysLeft > 0,
                       ),
                     ],
                   ),
-
-                  // Timer
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -470,24 +505,86 @@ class _LevelScreenState extends State<LevelScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: numColumns,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.8,
-              ),
-              itemCount: _cards.length,
-              itemBuilder: (context, index) {
-                final bool isRevealed =
-                    _selected.contains(index) || _completed.contains(index);
 
-                return CardTile(
-                  revealed: isRevealed,
-                  content: _cards[index],
-                  onTap: () => _onCardTap(index),
+          //Phần hiển thị thẻ
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double availableWidth = constraints.maxWidth - 40;
+                final double availableHeight = constraints.maxHeight - 40;
+                const double spacing = 12.0;
+                const double cardAspectRatio = 0.8;
+                final int totalCards = _cards.length;
+
+                int finalNumColumns = 2;
+                double finalCardWidth = 0.0;
+
+                for (int numCols in [2, 3, 4]) {
+                  final int numRows = (totalCards / numCols).ceil();
+
+                  // Tính kích thước thẻ dựa trên chiều rộng
+                  final double cardWidthBasedOnWidth =
+                      (availableWidth - (spacing * (numCols - 1))) / numCols;
+                  final double cardHeightBasedOnWidth =
+                      cardWidthBasedOnWidth / cardAspectRatio;
+
+                  // Tính tổng chiều cao cần thiết
+                  final double totalHeightNeeded =
+                      (numRows * cardHeightBasedOnWidth) +
+                          (spacing * (numRows - 1));
+
+                  if (totalHeightNeeded <= availableHeight) {
+                    finalNumColumns = numCols;
+                    finalCardWidth = cardWidthBasedOnWidth;
+                    break;
+                  }
+
+                  if (numCols == 4) {
+                    finalNumColumns = 4;
+                    final int numRows = (totalCards / numCols).ceil();
+
+                    final double cardHeightBasedOnHeight =
+                        (availableHeight - (spacing * (numRows - 1))) / numRows;
+                    final double cardWidthBasedOnHeight =
+                        cardHeightBasedOnHeight * cardAspectRatio;
+
+                    finalCardWidth =
+                        min(cardWidthBasedOnWidth, cardWidthBasedOnHeight);
+                  }
+                }
+
+                finalCardWidth = finalCardWidth.clamp(60.0, 150.0);
+                final double finalCardHeight = finalCardWidth / cardAspectRatio;
+
+                // Sử dụng ConstrainedBox để giới hạn chiều rộng của Wrap
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      // Chiều rộng tối đa của Wrap là (số cột * rộng thẻ) + (khoảng cách)
+                      maxWidth: (finalNumColumns * finalCardWidth) +
+                          (spacing * (finalNumColumns - 1)),
+                    ),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      runAlignment: WrapAlignment.center,
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: List.generate(_cards.length, (index) {
+                        final bool isRevealed = _selected.contains(index) ||
+                            _completed.contains(index);
+
+                        return SizedBox(
+                          width: finalCardWidth,
+                          height: finalCardHeight,
+                          child: CardTile(
+                            revealed: isRevealed,
+                            content: _cards[index],
+                            onTap: () => _onCardTap(index),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
                 );
               },
             ),
@@ -503,10 +600,9 @@ class _LevelScreenState extends State<LevelScreen> {
     required int count,
     required Color color,
     required VoidCallback onTap,
+    bool isDisabled = false,
   }) {
-    final gs = context.read<GameService>();
-    final bool canUse =
-        (gs.user.inventory[label.toLowerCase()]?.owned ?? 0) > 0;
+    final bool canUse = count > 0 && !isDisabled;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -516,18 +612,14 @@ class _LevelScreenState extends State<LevelScreen> {
           children: [
             Container(
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: canUse
+                    ? color.withOpacity(0.15)
+                    : Colors.grey.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: Icon(icon, color: color, size: 30),
-                onPressed: (label == (Strings.en['freeze'] ?? "Freeze") ||
-                            label == (Strings.vi['freeze'] ?? "Freeze")) &&
-                        _isFrozen
-                    ? null
-                    : canUse
-                        ? onTap
-                        : null,
+                icon: Icon(icon, color: canUse ? color : Colors.grey, size: 30),
+                onPressed: canUse ? onTap : null,
                 tooltip: label,
               ),
             ),
@@ -537,7 +629,7 @@ class _LevelScreenState extends State<LevelScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent,
+                  color: canUse ? Colors.redAccent : Colors.grey,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.white, width: 1),
                 ),
