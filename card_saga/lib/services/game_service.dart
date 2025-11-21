@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/level.dart';
 import '../models/user.dart';
@@ -29,6 +30,7 @@ class GameService extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   bool _isGeneratingMore = false;
+
   // Quản lý Theme
   List<GameTheme> _availableThemes = [];
   List<GameTheme> get availableThemes => _availableThemes;
@@ -71,20 +73,113 @@ class GameService extends ChangeNotifier {
   };
 
   GameService() {
-    levels.add(_gen.firstLevel());
-    generateMoreLevels(4);
     _initializeGameData();
   }
 
+  // Hàm lưu dữ liệu (Save game)
+  Future<void> saveGame() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final Map<String, dynamic> data = {
+        'user': user.toJson(),
+        'levels': levels.map((l) => l.toJson()).toList(),
+        'unlockedThemeIds': _unlockedThemeIds,
+        'currentThemeId': _currentThemeId,
+        'doubleCoinsPlaysLeft': doubleCoinsPlaysLeft,
+      };
+
+      await prefs.setString('game_save_data', json.encode(data));
+      debugPrint(">>> [System] Game Saved Successfully!");
+    } catch (e) {
+      debugPrint(">>> [System] Error Saving Game: $e");
+    }
+  }
+
+  // Hàm khởi tạo và tải dữ liệu (Load)
   Future<void> _initializeGameData() async {
     _isLoading = true;
     notifyListeners();
     try {
+      // 1. Load các tài nguyên tĩnh trước (Assets, Themes, Puzzle gốc)
       await puzzleService.loadPuzzles();
       await _loadDecorationAssets();
       await _loadThemes();
+
+      // 2. Đọc dữ liệu Save từ máy
+      final prefs = await SharedPreferences.getInstance();
+      final String? saveString = prefs.getString('game_save_data');
+
+      if (saveString != null) {
+        debugPrint(">>> [System] Found Save File. Loading...");
+        final Map<String, dynamic> data = json.decode(saveString);
+
+        // Khôi phục User
+        if (data['user'] != null) {
+          final userJson = data['user'];
+          user.coins = userJson['coins'] ?? 100;
+          user.stars = userJson['stars'] ?? 0;
+
+          if (userJson['inventory'] != null) {
+            user.inventory.clear();
+            for (var itemJson in userJson['inventory']) {
+              final item = Item.fromJson(itemJson);
+              user.inventory[item.id] = item;
+            }
+          }
+
+          // Puzzle Pieces
+          if (userJson['collectedPieceIds'] != null) {
+            user.puzzlePieces.clear();
+            final List<dynamic> savedIds = userJson['collectedPieceIds'];
+
+            // Lấy tất cả mảnh ghép hiện có trong hệ thống
+            final allSystemPieces =
+                puzzleService.puzzles.expand((p) => p.pieces);
+
+            for (var savedId in savedIds) {
+              final piece =
+                  allSystemPieces.firstWhereOrNull((p) => p.id == savedId);
+              if (piece != null) {
+                piece.collected = true;
+                user.puzzlePieces.add(piece);
+              }
+            }
+          }
+        }
+
+        // Khôi phục Level
+        if (data['levels'] != null) {
+          levels.clear();
+          for (var levelJson in data['levels']) {
+            levels.add(Level.fromJson(levelJson));
+          }
+        }
+
+        // Khôi phục Theme và còn lại
+        if (data['unlockedThemeIds'] != null) {
+          _unlockedThemeIds = List<String>.from(data['unlockedThemeIds']);
+        }
+        if (data['currentThemeId'] != null) {
+          _currentThemeId = data['currentThemeId'];
+        }
+        if (data['doubleCoinsPlaysLeft'] != null) {
+          doubleCoinsPlaysLeft = data['doubleCoinsPlaysLeft'];
+        }
+      } else {
+        // 3. Nếu chưa có file save -> Tạo mới
+        debugPrint(">>> [System] No Save File. Creating New Game.");
+        levels.clear();
+        levels.add(_gen.firstLevel());
+        generateMoreLevels(4);
+      }
     } catch (e) {
       debugPrint('Lỗi khi khởi tạo dữ liệu game: $e');
+      // Fallback nếu load lỗi: Tạo game mới để không bị crash
+      if (levels.isEmpty) {
+        levels.add(_gen.firstLevel());
+        generateMoreLevels(4);
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -127,15 +222,12 @@ class GameService extends ChangeNotifier {
         cardImagePaths: foodPaths,
         puzzleImageIds: [5, 6],
       ),
-      // Thêm các theme khác nếu có...
     ];
 
-    _unlockedThemeIds =
-        _availableThemes.where((t) => t.isDefault).map((t) => t.id).toList();
-
-    _currentThemeId = _availableThemes
-        .firstWhere((t) => t.isDefault, orElse: () => _availableThemes.first)
-        .id;
+    if (_unlockedThemeIds.length == 1 && _unlockedThemeIds.first == 'emoji') {
+      _unlockedThemeIds =
+          _availableThemes.where((t) => t.isDefault).map((t) => t.id).toList();
+    }
 
     debugPrint('Themes đã được tải: ${_availableThemes.length} themes.');
   }
@@ -188,6 +280,7 @@ class GameService extends ChangeNotifier {
         _availableThemes.any((t) => t.id == themeId)) {
       _currentThemeId = themeId;
       debugPrint("Đã chuyển sang theme: $_currentThemeId");
+      saveGame();
       notifyListeners();
     } else {
       debugPrint(
@@ -212,6 +305,7 @@ class GameService extends ChangeNotifier {
     if (user.stars >= theme.requiredStars &&
         !_unlockedThemeIds.contains(themeId)) {
       _unlockedThemeIds.add(themeId);
+      saveGame();
       notifyListeners();
       return true;
     } else {
@@ -256,6 +350,7 @@ class GameService extends ChangeNotifier {
     for (int i = 0; i < count; i++) {
       levels.add(_gen.generateNext(levels.last));
     }
+    saveGame();
     notifyListeners();
 
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -336,6 +431,7 @@ class GameService extends ChangeNotifier {
       }
     }
 
+    saveGame();
     notifyListeners();
 
     return LevelCompletionResult(
@@ -357,6 +453,7 @@ class GameService extends ChangeNotifier {
             price: item.price,
             owned: 1);
       }
+      saveGame();
       notifyListeners();
       return true;
     }
@@ -370,6 +467,7 @@ class GameService extends ChangeNotifier {
       if (item.type == ItemType.doubleCoins) {
         doubleCoinsPlaysLeft += 3;
       }
+      saveGame();
       notifyListeners();
       return true;
     }

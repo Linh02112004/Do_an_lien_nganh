@@ -12,4 +12,22 @@ class Level {
     this.unlocked = false,
     this.stars = 0,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'pairCount': pairCount,
+        'timeLimit': timeLimit,
+        'unlocked': unlocked,
+        'stars': stars,
+      };
+
+  factory Level.fromJson(Map<String, dynamic> json) {
+    return Level(
+      id: json['id'],
+      pairCount: json['pairCount'],
+      timeLimit: json['timeLimit'],
+      unlocked: json['unlocked'],
+      stars: json['stars'],
+    );
+  }
 }

@@ -5,15 +5,22 @@ class UserData {
   int coins;
   int stars;
   Map<String, Item> inventory;
-
-  // Danh sách mảnh ghép đã thu thập
   List<PuzzlePiece> puzzlePieces;
 
   UserData({
-    this.coins = 0,
-    this.stars = 0,
+    required this.coins,
+    required this.stars,
     Map<String, Item>? inventory,
     List<PuzzlePiece>? puzzlePieces,
-  })  : inventory = inventory ?? {},
-        puzzlePieces = puzzlePieces ?? [];
+  })  : this.inventory = inventory ?? {},
+        this.puzzlePieces = puzzlePieces ?? [];
+
+  Map<String, dynamic> toJson() {
+    return {
+      'coins': coins,
+      'stars': stars,
+      'inventory': inventory.values.map((i) => i.toJson()).toList(),
+      'collectedPieceIds': puzzlePieces.map((p) => p.id).toList(),
+    };
+  }
 }

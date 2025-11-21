@@ -36,6 +36,9 @@ dependencies:
   saver_gallery: ^2.0.0
   permission_handler: ^11.0.1
   screenshot: ^3.0.0     
+  google_fonts: ^6.3.2
+  shared_preferences: ^2.5.3
+  audioplayers: ^6.5.1
   
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -71,6 +74,9 @@ flutter:
     - assets/puzzles/
     - assets/imgs/emoji/
     - assets/imgs/fruit_vegetables/
+    - assets/imgs/food/
+    - assets/logo.png
+    - assets/audio/
   #  - assets/backgrounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
