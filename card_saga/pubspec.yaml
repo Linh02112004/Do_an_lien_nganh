@@ -30,11 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  provider: ^6.0.5 
-  collection: ^1.17.2
+  provider: ^6.1.5 
+  collection: ^1.19.1
   animate_do: ^3.3.4
-  saver_gallery: ^2.0.0
-  permission_handler: ^11.0.1
+  saver_gallery: ^4.1.0
+  permission_handler: ^12.0.1
   screenshot: ^3.0.0     
   google_fonts: ^6.3.2
   shared_preferences: ^2.5.3

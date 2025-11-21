@@ -27,11 +27,12 @@ class GameService extends ChangeNotifier {
   final List<Level> levels = [];
   final PuzzleService puzzleService = PuzzleService();
 
-  final AudioPlayer _bgmPlayer = AudioPlayer(); // Nhạc nền (loop)
-  final AudioPlayer _resultPlayer = AudioPlayer(); // Kết quả vượt ải
-  final AudioPlayer _sfxPlayer = AudioPlayer(); // Hiệu ứng
+  late AudioPlayer _bgmPlayer;
+  final AudioPlayer _resultPlayer = AudioPlayer();
+  final AudioPlayer _sfxPlayer = AudioPlayer();
 
   bool _isMusicOn = true;
+  bool _userHasInteracted = false;
   bool get isMusicOn => _isMusicOn;
 
   int doubleCoinsPlaysLeft = 0;
@@ -40,7 +41,6 @@ class GameService extends ChangeNotifier {
 
   bool _isGeneratingMore = false;
 
-  // Quản lý Theme
   List<GameTheme> _availableThemes = [];
   List<GameTheme> get availableThemes => _availableThemes;
 
@@ -52,7 +52,6 @@ class GameService extends ChangeNotifier {
   List<String> _unlockedThemeIds = ['emoji'];
   List<String> get unlockedThemeIds => _unlockedThemeIds;
 
-  // Lấy danh sách các PuzzleImage đã được mở khóa dựa trên theme
   List<PuzzleImage> get unlockedPuzzles {
     final unlockedPuzzleIds = _availableThemes
         .where((theme) => _unlockedThemeIds.contains(theme.id))
@@ -71,7 +70,6 @@ class GameService extends ChangeNotifier {
   ];
 
   static const int biomeSize = 10;
-
   final Map<String, List<String>> decorationAssetsByBiome = {};
 
   static const Map<int, List<String>> starMilestoneRewards = {
@@ -87,57 +85,124 @@ class GameService extends ChangeNotifier {
 
   //============== AUDIO LOGIC ==============
   Future<void> _initAudio() async {
-    // cấu hình chế độ phát
-    await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-    await _resultPlayer.setReleaseMode(ReleaseMode.stop);
-    await _sfxPlayer.setReleaseMode(ReleaseMode.stop);
+    debugPrint(">>> [Audio] Initializing with _isMusicOn = $_isMusicOn");
 
-    if (_isMusicOn) {
-      _playBgm();
+    _bgmPlayer = AudioPlayer();
+    debugPrint(">>> [Audio] Created new _bgmPlayer instance");
+
+    await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+
+    _bgmPlayer.onPlayerStateChanged.listen((state) {
+      debugPrint(">>> [BGM-LISTENER] State changed to: $state");
+    });
+
+    _bgmPlayer.onPlayerComplete.listen((event) {
+      debugPrint(">>> [BGM-LISTENER] Playback completed!");
+    });
+
+    try {
+      await _resultPlayer.setReleaseMode(ReleaseMode.stop);
+      await _sfxPlayer.setReleaseMode(ReleaseMode.stop);
+      await _resultPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _sfxPlayer.setPlayerMode(PlayerMode.lowLatency);
+    } catch (e) {
+      debugPrint(">>> [Audio] Error setting modes: $e");
+    }
+
+    debugPrint(
+        ">>> [Audio] Audio system ready. BGM will start after user taps PLAY.");
+  }
+
+  Future<void> ensureBgmStarted() async {
+    if (!_userHasInteracted) {
+      _userHasInteracted = true;
+      debugPrint(">>> [Audio] First user interaction detected!");
+
+      if (_isMusicOn && _bgmPlayer.state != PlayerState.playing) {
+        debugPrint(">>> [Audio] Starting BGM after user tap...");
+        await _playBgm();
+      } else {
+        debugPrint(">>> [Audio] BGM already playing or music is OFF");
+      }
+    } else {
+      debugPrint(">>> [Audio] User already interacted, BGM should be running");
     }
   }
 
   Future<void> _playBgm() async {
+    debugPrint(">>> [BGM] _playBgm() called, _isMusicOn = $_isMusicOn");
+
     if (!_isMusicOn) {
-      debugPrint("BGM: Nhạc nền đang tắt");
+      debugPrint(">>> [BGM] Music OFF, aborting");
       return;
     }
 
     try {
       await _bgmPlayer.stop();
+      debugPrint(">>> [BGM] Stopped");
+
       await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-      await _bgmPlayer.play(AssetSource('audio/bgm.mp3'), volume: 0.8);
-      debugPrint("BGM: Nhạc nền bật thành công!"); //
-    } catch (e) {
-      debugPrint("Lỗi phát BGM: $e");
+      debugPrint(">>> [BGM] Set LOOP mode");
+
+      debugPrint(">>> [BGM] Setting source to bgm.mp3...");
+      await _bgmPlayer.setSource(AssetSource('audio/bgm.mp3'));
+
+      debugPrint(">>> [BGM] Setting volume to 0.5...");
+      await _bgmPlayer.setVolume(0.5);
+
+      debugPrint(">>> [BGM] Calling resume()...");
+      await _bgmPlayer.resume();
+
+      await Future.delayed(const Duration(milliseconds: 300));
+      final state = _bgmPlayer.state;
+      debugPrint(">>> [BGM] State after resume: $state");
+
+      if (state == PlayerState.playing) {
+        debugPrint(">>> [BGM] SUCCESS! BGM is now playing!");
+      } else {
+        debugPrint(">>> [BGM] WARNING: State is $state, not playing");
+      }
+    } catch (e, st) {
+      if (e.toString().contains('NotAllowedError') ||
+          e.toString().contains('play() failed')) {
+        debugPrint(
+            ">>> [BGM] Autoplay blocked (should not happen after user interaction)");
+      } else {
+        debugPrint(">>> [BGM] Error: $e");
+        debugPrint(">>> [BGM] Stack: $st");
+      }
     }
   }
 
   Future<void> playResultMusic(bool isWin) async {
-    // 1. Dừng BGM ngay lập tức
-    await _bgmPlayer.stop();
-
     if (!_isMusicOn) return;
 
     try {
       final String file = isWin ? 'audio/win.mp3' : 'audio/lose.mp3';
-      // 2. Phát nhạc kết quả
       await _resultPlayer.stop();
       await _resultPlayer.play(AssetSource(file), volume: 0.8);
+      debugPrint(">>> [Result] Playing: $file");
+
+      if (_bgmPlayer.state != PlayerState.playing && _isMusicOn) {
+        await _playBgm();
+      }
     } catch (e) {
-      debugPrint("Lỗi phát nhạc kết quả: $e");
+      debugPrint(">>> [Result] Error: $e");
     }
   }
 
   Future<void> resumeBgmAfterResult() async {
-    await _resultPlayer.stop();
+    try {
+      await _resultPlayer.stop();
+    } catch (e) {
+      debugPrint(">>> [Result] Stop error: $e");
+    }
 
-    if (_isMusicOn) {
+    if (_isMusicOn && _bgmPlayer.state != PlayerState.playing) {
       await _playBgm();
     }
   }
 
-// Âm thanh tap
   Future<void> playTapSound() async {
     if (!_isMusicOn) return;
     try {
@@ -146,11 +211,10 @@ class GameService extends ChangeNotifier {
       }
       await _sfxPlayer.play(AssetSource('audio/tap.mp3'), volume: 1.0);
     } catch (e) {
-      debugPrint("Error playing tap: $e");
+      debugPrint(">>> [SFX] Tap error: $e");
     }
   }
 
-  // Âm thanh khi Mua thành công
   Future<void> playBoughtSound() async {
     if (!_isMusicOn) return;
     try {
@@ -159,20 +223,33 @@ class GameService extends ChangeNotifier {
       }
       await _sfxPlayer.play(AssetSource('audio/bought.mp3'), volume: 1.0);
     } catch (e) {
-      debugPrint("Error playing bought: $e");
+      debugPrint(">>> [SFX] Bought error: $e");
     }
   }
 
   void toggleMusic() {
     _isMusicOn = !_isMusicOn;
-    debugPrint("Toggle Music: $_isMusicOn");
+    debugPrint(">>> [Toggle] Music: $_isMusicOn");
 
     if (_isMusicOn) {
-      _playBgm();
+      debugPrint(">>> [Toggle] Turning ON...");
+      if (_userHasInteracted) {
+        _playBgm();
+      } else {
+        debugPrint(">>> [Toggle] Waiting for user to tap PLAY first...");
+      }
     } else {
-      _bgmPlayer.stop();
-      _resultPlayer.stop();
-      _sfxPlayer.stop();
+      debugPrint(">>> [Toggle] Turning OFF...");
+      try {
+        _bgmPlayer.pause();
+        debugPrint(">>> [Toggle] BGM paused");
+      } catch (e) {
+        debugPrint(">>> [Toggle] Pause error: $e");
+      }
+      try {
+        _resultPlayer.stop();
+        _sfxPlayer.stop();
+      } catch (e) {}
     }
 
     saveGame();
@@ -193,31 +270,35 @@ class GameService extends ChangeNotifier {
       };
 
       await prefs.setString('game_save_data', json.encode(data));
-      debugPrint(">>> [System] Game Saved Successfully!");
+      debugPrint(">>> [System] Game Saved!");
     } catch (e) {
-      debugPrint(">>> [System] Error Saving Game: $e");
+      debugPrint(">>> [System] Save Error: $e");
     }
   }
 
   Future<void> _initializeGameData() async {
     _isLoading = true;
     notifyListeners();
+
     try {
-      // 1. Load tài nguyên tĩnh
+      // 1. Load static resources
       await puzzleService.loadPuzzles();
       await _loadDecorationAssets();
       await _loadThemes();
 
-      // 2. Khởi tạo Audio
-      await _initAudio();
-
-      // 3. Load dữ liệu Save
+      // 2. Load save data FIRST (to get _isMusicOn before audio init)
       final prefs = await SharedPreferences.getInstance();
       final String? saveString = prefs.getString('game_save_data');
 
       if (saveString != null) {
-        debugPrint(">>> [System] Found Save File. Loading...");
+        debugPrint(">>> [System] Loading save file...");
         final Map<String, dynamic> data = json.decode(saveString);
+
+        // Load music setting FIRST
+        if (data['isMusicOn'] != null) {
+          _isMusicOn = data['isMusicOn'];
+          debugPrint(">>> [System] Loaded _isMusicOn: $_isMusicOn");
+        }
 
         // Load User
         if (data['user'] != null) {
@@ -258,7 +339,7 @@ class GameService extends ChangeNotifier {
           }
         }
 
-        // Load Theme & Dữ liệu khác
+        // Load Theme
         if (data['unlockedThemeIds'] != null) {
           _unlockedThemeIds = List<String>.from(data['unlockedThemeIds']);
         }
@@ -268,20 +349,17 @@ class GameService extends ChangeNotifier {
         if (data['doubleCoinsPlaysLeft'] != null) {
           doubleCoinsPlaysLeft = data['doubleCoinsPlaysLeft'];
         }
-
-        // Load BGM
-        if (data['isMusicOn'] != null) {
-          _isMusicOn = data['isMusicOn'];
-        }
       } else {
-        // New Game
-        debugPrint(">>> [System] No Save File. Creating New Game.");
+        debugPrint(">>> [System] No save file. New game.");
         levels.clear();
         levels.add(_gen.firstLevel());
         generateMoreLevels(4);
       }
+
+      // 3. Init audio AFTER loading settings
+      await _initAudio();
     } catch (e) {
-      debugPrint('Lỗi khi khởi tạo dữ liệu game: $e');
+      debugPrint('>>> [System] Init error: $e');
       if (levels.isEmpty) {
         levels.add(_gen.firstLevel());
         generateMoreLevels(4);
@@ -289,10 +367,6 @@ class GameService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
-
-      if (_isMusicOn) {
-        await _playBgm(); // Đảm bảo BGM chạy nếu setting bật
-      }
     }
   }
 
@@ -339,7 +413,7 @@ class GameService extends ChangeNotifier {
           _availableThemes.where((t) => t.isDefault).map((t) => t.id).toList();
     }
 
-    debugPrint('Themes đã được tải: ${_availableThemes.length} themes.');
+    debugPrint('>>> [Themes] Loaded: ${_availableThemes.length}');
   }
 
   Future<void> _loadDecorationAssets() async {
@@ -351,7 +425,6 @@ class GameService extends ChangeNotifier {
 
       final manifestJson = await rootBundle.loadString('AssetManifest.json');
       final Map<String, dynamic> manifestMap = json.decode(manifestJson);
-
       final allAssetPaths = manifestMap.keys;
 
       for (final path in allAssetPaths) {
@@ -363,9 +436,9 @@ class GameService extends ChangeNotifier {
         }
       }
 
-      debugPrint('Đã tải và phân loại assets: $decorationAssetsByBiome');
+      debugPrint('>>> [Assets] Loaded decorations');
     } catch (e) {
-      debugPrint('Lỗi khi tải ảnh trang trí: $e');
+      debugPrint('>>> [Assets] Error: $e');
     }
   }
 
@@ -379,7 +452,7 @@ class GameService extends ChangeNotifier {
   List<String> getCardAssetsForCurrentTheme() {
     final theme = currentTheme;
     if (theme.cardImagePaths.isEmpty) {
-      debugPrint("Cảnh báo: Theme '${theme.id}' không có ảnh thẻ nào.");
+      debugPrint(">>> [Theme] Warning: No cards in '${theme.id}'");
       return ['assets/imgs/placeholder.png'];
     }
     return List<String>.from(theme.cardImagePaths);
@@ -389,12 +462,9 @@ class GameService extends ChangeNotifier {
     if (_unlockedThemeIds.contains(themeId) &&
         _availableThemes.any((t) => t.id == themeId)) {
       _currentThemeId = themeId;
-      debugPrint("Đã chuyển sang theme: $_currentThemeId");
+      debugPrint(">>> [Theme] Switched to: $_currentThemeId");
       saveGame();
       notifyListeners();
-    } else {
-      debugPrint(
-          "Không thể chuyển sang theme '$themeId': Chưa mở khóa hoặc không tồn tại.");
     }
   }
 
@@ -404,25 +474,16 @@ class GameService extends ChangeNotifier {
 
   bool unlockTheme(String themeId) {
     final theme = _availableThemes.firstWhereOrNull((t) => t.id == themeId);
-    if (theme == null) {
-      debugPrint("Theme '$themeId' không tồn tại.");
-      return false;
-    }
-    if (isThemeUnlocked(themeId)) {
-      debugPrint("Theme '$themeId' đã được mở khóa rồi.");
-      return true;
-    }
-    if (user.stars >= theme.requiredStars &&
-        !_unlockedThemeIds.contains(themeId)) {
+    if (theme == null) return false;
+    if (isThemeUnlocked(themeId)) return true;
+
+    if (user.stars >= theme.requiredStars) {
       _unlockedThemeIds.add(themeId);
       saveGame();
       notifyListeners();
       return true;
-    } else {
-      debugPrint(
-          "Không đủ sao để mở khóa theme '$themeId'. Cần ${theme.requiredStars}, đang có ${user.stars}");
-      return false;
     }
+    return false;
   }
 
   final List<Item> shopItems = [

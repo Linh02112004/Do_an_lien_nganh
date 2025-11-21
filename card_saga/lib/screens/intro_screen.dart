@@ -65,13 +65,22 @@ class _IntroScreenState extends State<IntroScreen> {
     super.dispose();
   }
 
-  void _navigateToMapScreen() {
-    context.read<GameService>().playTapSound();
+  Future<void> _navigateToMapScreen() async {
+    final gameService = context.read<GameService>();
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MapScreen()),
-    );
+    // ✅ BẮT ĐẦU BGM khi user tap nút PLAY
+    debugPrint(">>> [IntroScreen] User tapped PLAY button");
+    await gameService.playTapSound();
+
+    // ✅ Trigger BGM start (sau user interaction)
+    await gameService.ensureBgmStarted();
+
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const MapScreen()),
+      );
+    }
   }
 
   @override
@@ -83,10 +92,6 @@ class _IntroScreenState extends State<IntroScreen> {
         'Chào mừng đến với Card Saga – thế giới của những thẻ bài kỳ diệu và mảnh ghép đầy sắc màu!';
     final introDesc2 = t['intro_desc_2'] ??
         'Hãy sẵn sàng cho hành trình khám phá, rèn luyện trí nhớ và hoàn thành những bức tranh đáng yêu nhé!';
-    final teamTitle = t['team_title'] ?? 'Nhóm phát triển';
-    final member1 = t['member_1'] ?? 'Nguyễn Ngọc Linh';
-    final member2 = t['member_2'] ?? 'Lê Thị Ngọc Linh';
-    final member3 = t['member_3'] ?? 'Vũ Thị Trang';
 
     final loadingText = t['loading'] ?? 'Loading...';
     final playButtonText = t['play'] ?? 'PLAY!';
@@ -145,37 +150,6 @@ class _IntroScreenState extends State<IntroScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 15),
-                    Text(
-                      teamTitle,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.pinkAccent.shade400,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      member1,
-                      style:
-                          TextStyle(fontSize: 20, color: Colors.pink.shade800),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      member2,
-                      style:
-                          TextStyle(fontSize: 20, color: Colors.pink.shade800),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      member3,
-                      style:
-                          TextStyle(fontSize: 20, color: Colors.pink.shade800),
-                      textAlign: TextAlign.center,
-                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -187,28 +161,45 @@ class _IntroScreenState extends State<IntroScreen> {
               flex: 2,
               child: Center(
                 child: _isLoadingComplete
-                    ? ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.pinkAccent,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 18, horizontal: 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
+                    ? AnimatedScale(
+                        scale: 1.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.pinkAccent,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 18, horizontal: 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            elevation: 8,
+                            shadowColor: Colors.pink.withOpacity(0.5),
                           ),
-                        ),
-                        onPressed: _navigateToMapScreen,
-                        child: Text(
-                          playButtonText,
-                          style: const TextStyle(
-                            fontSize: 25,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 1.5,
+                          onPressed: _navigateToMapScreen,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                playButtonText,
+                                style: const TextStyle(
+                                  fontSize: 25,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ],
                           ),
                         ),
                       )
                     : Column(
-                        mainAxisAlignment: MainAxisAlignment.center, // Căn giữa
+                        mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
