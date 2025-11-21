@@ -59,6 +59,19 @@ class Strings {
     'no_puzzle_pieces': 'You have no piece for this puzzle yet!',
     'switched_theme': 'Switched theme',
     'unlock_failed': 'Failed to unlock',
+    'intro_desc_1':
+        'Welcome to Card Saga – the world of magical cards and colorful puzzle pieces!',
+    'intro_desc_2':
+        'Get ready for a journey to explore, train your memory, and complete adorable pictures!',
+    'team_title': 'Development Team',
+    'member_1': 'Nguyễn Ngọc Linh',
+    'member_2': 'Lê Thị Ngọc Linh',
+    'member_3': 'Vũ Thị Trang',
+    'loading': 'Loading...',
+    'play': 'PLAY!',
+    'setting': 'Setting',
+    'music': 'Music',
+    'close': 'Close',
   };
 
   static const vi = {
@@ -113,5 +126,19 @@ class Strings {
     'no_puzzle_pieces': 'Bạn chưa có mảnh ghép nào cho tranh này!',
     'switched_theme': 'Đã đổi chủ đề',
     'unlock_failed': 'Mở khóa thất bại',
+    'intro_desc_1':
+        'Chào mừng đến với Card Saga – thế giới của những thẻ bài kỳ diệu và mảnh ghép đầy sắc màu!',
+    'intro_desc_2':
+        'Hãy sẵn sàng cho hành trình khám phá, rèn luyện trí nhớ và hoàn thành những bức tranh đáng yêu nhé!',
+    'team_title': 'Nhóm phát triển',
+    'member_1': 'Nguyễn Ngọc Linh',
+    'member_2': 'Lê Thị Ngọc Linh',
+    'member_3': 'Vũ Thị Trang',
+    'loading': 'Đang tải...',
+    'play': 'CHƠI!',
+    'switched_to': 'Chuyển sang',
+    'setting': 'Cài đặt',
+    'music': 'Nhạc nền',
+    'close': 'Đóng',
   };
 }

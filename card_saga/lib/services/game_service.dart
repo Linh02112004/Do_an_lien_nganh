@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import '../models/level.dart';
 import '../models/user.dart';
@@ -25,6 +26,13 @@ class GameService extends ChangeNotifier {
   final LevelGenerator _gen = LevelGenerator();
   final List<Level> levels = [];
   final PuzzleService puzzleService = PuzzleService();
+
+  final AudioPlayer _bgmPlayer = AudioPlayer(); // Nhạc nền
+  final AudioPlayer _sfxPlayer = AudioPlayer(); // Nhạc Thắng/Thua
+
+  bool _isMusicOn = true;
+  bool get isMusicOn => _isMusicOn;
+
   int doubleCoinsPlaysLeft = 0;
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -76,7 +84,62 @@ class GameService extends ChangeNotifier {
     _initializeGameData();
   }
 
-  // Hàm lưu dữ liệu (Save game)
+  Future<void> _initAudio() async {
+    // Set chế độ lặp cho cả nhạc nền và nhạc hiệu ứng (theo yêu cầu)
+    await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+    await _sfxPlayer.setReleaseMode(ReleaseMode.loop);
+
+    if (_isMusicOn) {
+      await _playBgm();
+    }
+  }
+
+  Future<void> _playBgm() async {
+    if (!_isMusicOn) return;
+    if (_bgmPlayer.state != PlayerState.playing) {
+      try {
+        await _bgmPlayer.play(AssetSource('audio/bgm.mp3'), volume: 0.4);
+      } catch (e) {
+        debugPrint("Lỗi phát BGM: $e");
+      }
+    }
+  }
+
+  // Gọi khi Thắng/Thua: Dừng BGM, phát nhạc kết quả lặp lại
+  Future<void> playResultMusic(bool isWin) async {
+    if (!_isMusicOn) return;
+
+    await _bgmPlayer.stop();
+
+    try {
+      final String file = isWin ? 'audio/win.mp3' : 'audio/lose.mp3';
+      await _sfxPlayer.stop();
+      await _sfxPlayer.play(AssetSource(file), volume: 1.0);
+    } catch (e) {
+      debugPrint("Lỗi phát SFX: $e");
+    }
+  }
+
+  // Gọi khi ấn OK: Dừng nhạc kết quả, quay lại BGM
+  Future<void> resumeBgmAfterResult() async {
+    if (!_isMusicOn) return;
+
+    await _sfxPlayer.stop();
+    await _playBgm();
+  }
+
+  void toggleMusic() {
+    _isMusicOn = !_isMusicOn;
+    if (_isMusicOn) {
+      _playBgm();
+    } else {
+      _bgmPlayer.stop();
+      _sfxPlayer.stop();
+    }
+    saveGame();
+    notifyListeners();
+  }
+
   Future<void> saveGame() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -87,6 +150,7 @@ class GameService extends ChangeNotifier {
         'unlockedThemeIds': _unlockedThemeIds,
         'currentThemeId': _currentThemeId,
         'doubleCoinsPlaysLeft': doubleCoinsPlaysLeft,
+        'isMusicOn': _isMusicOn,
       };
 
       await prefs.setString('game_save_data', json.encode(data));
@@ -96,17 +160,19 @@ class GameService extends ChangeNotifier {
     }
   }
 
-  // Hàm khởi tạo và tải dữ liệu (Load)
   Future<void> _initializeGameData() async {
     _isLoading = true;
     notifyListeners();
     try {
-      // 1. Load các tài nguyên tĩnh trước (Assets, Themes, Puzzle gốc)
+      // 1. Load tài nguyên tĩnh
       await puzzleService.loadPuzzles();
       await _loadDecorationAssets();
       await _loadThemes();
 
-      // 2. Đọc dữ liệu Save từ máy
+      // 2. Khởi tạo Audio
+      await _initAudio();
+
+      // 3. Load dữ liệu Save
       final prefs = await SharedPreferences.getInstance();
       final String? saveString = prefs.getString('game_save_data');
 
@@ -128,12 +194,9 @@ class GameService extends ChangeNotifier {
             }
           }
 
-          // Puzzle Pieces
           if (userJson['collectedPieceIds'] != null) {
             user.puzzlePieces.clear();
             final List<dynamic> savedIds = userJson['collectedPieceIds'];
-
-            // Lấy tất cả mảnh ghép hiện có trong hệ thống
             final allSystemPieces =
                 puzzleService.puzzles.expand((p) => p.pieces);
 
@@ -156,7 +219,7 @@ class GameService extends ChangeNotifier {
           }
         }
 
-        // Khôi phục Theme và còn lại
+        // Khôi phục Theme & Khác
         if (data['unlockedThemeIds'] != null) {
           _unlockedThemeIds = List<String>.from(data['unlockedThemeIds']);
         }
@@ -166,8 +229,17 @@ class GameService extends ChangeNotifier {
         if (data['doubleCoinsPlaysLeft'] != null) {
           doubleCoinsPlaysLeft = data['doubleCoinsPlaysLeft'];
         }
+
+        // Khôi phục nhạc
+        if (data['isMusicOn'] != null) {
+          _isMusicOn = data['isMusicOn'];
+          if (!_isMusicOn) {
+            _bgmPlayer.stop();
+            _sfxPlayer.stop();
+          }
+        }
       } else {
-        // 3. Nếu chưa có file save -> Tạo mới
+        // New Game
         debugPrint(">>> [System] No Save File. Creating New Game.");
         levels.clear();
         levels.add(_gen.firstLevel());
@@ -175,7 +247,7 @@ class GameService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Lỗi khi khởi tạo dữ liệu game: $e');
-      // Fallback nếu load lỗi: Tạo game mới để không bị crash
+      // Fallback
       if (levels.isEmpty) {
         levels.add(_gen.firstLevel());
         generateMoreLevels(4);
@@ -409,13 +481,11 @@ class GameService extends ChangeNotifier {
       unlockNext(id);
     }
 
-    // 1. Lấy danh sách ID puzzle từ các theme đã mở khóa
     final unlockedPuzzleIds = _availableThemes
         .where((theme) => _unlockedThemeIds.contains(theme.id))
         .expand((theme) => theme.puzzleImageIds)
         .toSet();
 
-    // 2. Truyền danh sách ID này vào hàm dropRandomPieces
     final List<PuzzlePiece> dropped =
         puzzleService.dropRandomPieces(allowedPuzzleIds: unlockedPuzzleIds);
     final List<PuzzlePiece> milestones =
@@ -472,5 +542,12 @@ class GameService extends ChangeNotifier {
       return true;
     }
     return false;
+  }
+
+  @override
+  void dispose() {
+    _bgmPlayer.dispose();
+    _sfxPlayer.dispose();
+    super.dispose();
   }
 }

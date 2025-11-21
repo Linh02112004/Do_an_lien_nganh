@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'providers/lang_provider.dart';
 import 'services/game_service.dart';
-import 'screens/map_screen.dart';
+import 'screens/intro_screen.dart';
 import 'utils/constants.dart';
 
 void main() {
@@ -30,8 +31,11 @@ class CardSagaApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.pink,
         scaffoldBackgroundColor: AppColors.bg,
+        textTheme: GoogleFonts.baloo2TextTheme(
+          Theme.of(context).textTheme,
+        ),
       ),
-      home: const MapScreen(),
+      home: const IntroScreen(),
       locale: lang,
     );
   }
