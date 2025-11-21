@@ -246,6 +246,11 @@ class _LevelScreenState extends State<LevelScreen> {
       _gameOver = true;
     });
 
+    final gs = Provider.of<GameService>(context, listen: false);
+
+    // --- PHÁT NHẠC KẾT QUẢ ---
+    gs.playResultMusic(won);
+
     if (!won) {
       showDialog(
         context: context,
@@ -260,20 +265,19 @@ class _LevelScreenState extends State<LevelScreen> {
               const Icon(Icons.sentiment_dissatisfied,
                   color: Colors.redAccent, size: 30),
               const SizedBox(width: 8),
-              Text(
-                lang['time_up'] ?? 'Time up!',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              Text(lang['time_up'] ?? 'Time up!',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           content: Text(
-            lang['level_failed'] ?? 'You did not complete this level.',
-            textAlign: TextAlign.center,
-          ),
+              lang['level_failed'] ?? 'You did not complete this level.',
+              textAlign: TextAlign.center),
           actionsAlignment: MainAxisAlignment.center,
           actions: [
             ElevatedButton(
               onPressed: () {
+                gs.playTapSound(); // Sound tap
+                gs.resumeBgmAfterResult(); // Quay lại BGM
                 Navigator.pop(context);
                 Navigator.pop(context);
               },

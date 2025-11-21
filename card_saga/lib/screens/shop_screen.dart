@@ -138,6 +138,7 @@ class ShopScreen extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent),
                     onPressed: () {
+                      gs.playTapSound();
                       gs.setCurrentTheme(theme.id);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(

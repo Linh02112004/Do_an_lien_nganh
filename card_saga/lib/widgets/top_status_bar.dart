@@ -87,16 +87,20 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
-  // Popup cài đặt
+  // Popup cài đặt (Music + Language)
   void _showSettingsDialog(BuildContext context) {
+    final gs = Provider.of<GameService>(context, listen: false);
+    final langProvider = Provider.of<LangProvider>(context, listen: false);
+    gs.playTapSound();
+
     showDialog(
       context: context,
       builder: (context) {
-        final langProvider = Provider.of<LangProvider>(context);
-        final t =
-            langProvider.locale.languageCode == 'en' ? Strings.en : Strings.vi;
-        return Consumer<GameService>(
-          builder: (context, gs, child) {
+        return Consumer2<GameService, LangProvider>(
+          builder: (context, gs, lang, child) {
+            final t =
+                lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
+
             return AlertDialog(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16)),
@@ -107,7 +111,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
                   const Icon(Icons.settings, color: Colors.pinkAccent),
                   const SizedBox(width: 8),
                   Text(
-                    t['setting'] ?? "Setting",
+                    t['setting'] ?? "Settings",
                     style: TextStyle(
                         color: Colors.pink.shade800,
                         fontWeight: FontWeight.bold),
@@ -117,6 +121,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Music Toggle
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -124,7 +129,7 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     child: SwitchListTile(
                       title: Text(t['music'] ?? "Music",
-                          style: TextStyle(fontWeight: FontWeight.w600)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       secondary: Icon(
                         gs.isMusicOn ? Icons.music_note : Icons.music_off,
                         color: gs.isMusicOn ? Colors.pinkAccent : Colors.grey,
@@ -132,7 +137,43 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
                       value: gs.isMusicOn,
                       activeColor: Colors.pinkAccent,
                       onChanged: (bool value) {
+                        gs.playTapSound();
                         gs.toggleMusic();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Language Toggle
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      leading:
+                          const Icon(Icons.language, color: Colors.pinkAccent),
+                      title: Text(t['change_language'] ?? "Language",
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.pinkAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.pinkAccent),
+                        ),
+                        child: Text(
+                          lang.locale.languageCode.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.pinkAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      onTap: () {
+                        gs.playTapSound();
+                        lang.toggle();
                       },
                     ),
                   ),
@@ -140,9 +181,13 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    gs.playTapSound();
+                    Navigator.pop(context);
+                  },
                   child: Text(t['close'] ?? "Close",
-                      style: TextStyle(color: Colors.pinkAccent, fontSize: 16)),
+                      style: const TextStyle(
+                          color: Colors.pinkAccent, fontSize: 16)),
                 )
               ],
             );
@@ -158,89 +203,97 @@ class TopStatusBar extends StatelessWidget implements PreferredSizeWidget {
     final lang = context.watch<LangProvider>();
     final t = lang.locale.languageCode == 'en' ? Strings.en : Strings.vi;
 
-    final textStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w500,
-        );
+    // Compact text style
+    final compactStyle = const TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.w600,
+      fontSize: 15,
+    );
 
     return AppBar(
       backgroundColor: Colors.pinkAccent,
       elevation: 4.0,
       automaticallyImplyLeading: false,
-
-      // 1. Nếu có showBack -> Hiện nút Back
-      // 2. Nếu KHÔNG showBack mà có showSettings -> Hiện nút Cài đặt
-      // 3. Còn lại -> Null
+      titleSpacing: 4, // Giảm spacing để tránh tràn
+      // ============ BÊN TRÁI ============
       leading: showBack
           ? IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white),
+                  color: Colors.white, size: 20),
               tooltip: t['back'],
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                gs.playTapSound();
+                Navigator.pop(context);
+              },
             )
           : (showSettings
               ? IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white),
-                  tooltip: t['setting'] ?? 'Setting',
+                  icon:
+                      const Icon(Icons.settings, color: Colors.white, size: 22),
+                  tooltip: t['setting'] ?? 'Settings',
                   onPressed: () => _showSettingsDialog(context),
                 )
               : null),
 
-      title: Row(
-        children: [
-          if (title != null)
-            Text(
+      // ============ TITLE: "Map" ============
+      title: title != null
+          ? Text(
               title!,
               style: const TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          const Spacer(),
-          if (showCoinsAndStars) ...[
-            const Icon(Icons.monetization_on, color: Colors.yellow, size: 24),
-            const SizedBox(width: 4),
-            AnimatedCount(
-              count: gs.user.coins,
-              style: textStyle,
-            ),
-            const SizedBox(width: 16),
-            const Icon(Icons.star_rounded, color: Colors.amber, size: 26),
-            const SizedBox(width: 4),
-            AnimatedCount(
-              count: gs.user.stars,
-              style: textStyle,
-            ),
-          ],
-        ],
-      ),
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontSize: 18,
+              ),
+            )
+          : null,
 
+      // ============ BÊN PHẢI ============
       actions: [
-        IconButton(
-          icon: const Icon(Icons.language, color: Colors.white),
-          tooltip: t['change_language'] ?? 'Change Language',
-          onPressed: () => lang.toggle(),
-        ),
+        // Coins
+        if (showCoinsAndStars) ...[
+          const Icon(Icons.monetization_on, color: Colors.yellow, size: 20),
+          const SizedBox(width: 3),
+          AnimatedCount(count: gs.user.coins, style: compactStyle),
+          const SizedBox(width: 10),
+
+          // Stars
+          const Icon(Icons.star_rounded, color: Colors.amber, size: 22),
+          const SizedBox(width: 3),
+          AnimatedCount(count: gs.user.stars, style: compactStyle),
+          const SizedBox(width: 8),
+        ],
+
+        // Puzzle Gallery Button
         if (showGalleryButton)
           IconButton(
-            icon: const Icon(Icons.extension, color: Colors.white),
-            tooltip: t['view_puzzles'] ?? 'View Puzzles',
+            icon: const Icon(Icons.extension, color: Colors.white, size: 22),
+            tooltip: t['view_puzzles'] ?? 'Puzzles',
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
             onPressed: () {
+              gs.playTapSound();
               Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PuzzleGalleryScreen()),
-              );
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PuzzleGalleryScreen()));
             },
           ),
+
+        // Shop Button
         if (showShopButton)
           IconButton(
-            icon: const Icon(Icons.store, color: Colors.white),
-            tooltip: t['view_shop'] ?? 'View Shop',
+            icon: const Icon(Icons.store, color: Colors.white, size: 22),
+            tooltip: t['view_shop'] ?? 'Shop',
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ShopScreen()),
-              );
+              gs.playTapSound();
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ShopScreen()));
             },
           ),
+
+        const SizedBox(width: 4), // Padding cuối
       ],
     );
   }

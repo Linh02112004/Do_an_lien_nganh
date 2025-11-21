@@ -27,8 +27,9 @@ class GameService extends ChangeNotifier {
   final List<Level> levels = [];
   final PuzzleService puzzleService = PuzzleService();
 
-  final AudioPlayer _bgmPlayer = AudioPlayer(); // Nhạc nền
-  final AudioPlayer _sfxPlayer = AudioPlayer(); // Nhạc Thắng/Thua
+  final AudioPlayer _bgmPlayer = AudioPlayer(); // Nhạc nền (loop)
+  final AudioPlayer _resultPlayer = AudioPlayer(); // Kết quả vượt ải
+  final AudioPlayer _sfxPlayer = AudioPlayer(); // Hiệu ứng
 
   bool _isMusicOn = true;
   bool get isMusicOn => _isMusicOn;
@@ -84,58 +85,96 @@ class GameService extends ChangeNotifier {
     _initializeGameData();
   }
 
+  //============== AUDIO LOGIC ==============
   Future<void> _initAudio() async {
-    // Set chế độ lặp cho cả nhạc nền và nhạc hiệu ứng (theo yêu cầu)
+    // cấu hình chế độ phát
     await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-    await _sfxPlayer.setReleaseMode(ReleaseMode.loop);
+    await _resultPlayer.setReleaseMode(ReleaseMode.stop);
+    await _sfxPlayer.setReleaseMode(ReleaseMode.stop);
+
+    if (_isMusicOn) {
+      _playBgm();
+    }
+  }
+
+  Future<void> _playBgm() async {
+    if (!_isMusicOn) {
+      debugPrint("BGM: Nhạc nền đang tắt");
+      return;
+    }
+
+    try {
+      await _bgmPlayer.stop();
+      await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer.play(AssetSource('audio/bgm.mp3'), volume: 0.8);
+      debugPrint("BGM: Nhạc nền bật thành công!"); //
+    } catch (e) {
+      debugPrint("Lỗi phát BGM: $e");
+    }
+  }
+
+  Future<void> playResultMusic(bool isWin) async {
+    // 1. Dừng BGM ngay lập tức
+    await _bgmPlayer.stop();
+
+    if (!_isMusicOn) return;
+
+    try {
+      final String file = isWin ? 'audio/win.mp3' : 'audio/lose.mp3';
+      // 2. Phát nhạc kết quả
+      await _resultPlayer.stop();
+      await _resultPlayer.play(AssetSource(file), volume: 0.8);
+    } catch (e) {
+      debugPrint("Lỗi phát nhạc kết quả: $e");
+    }
+  }
+
+  Future<void> resumeBgmAfterResult() async {
+    await _resultPlayer.stop();
 
     if (_isMusicOn) {
       await _playBgm();
     }
   }
 
-  Future<void> _playBgm() async {
+// Âm thanh tap
+  Future<void> playTapSound() async {
     if (!_isMusicOn) return;
-    if (_bgmPlayer.state != PlayerState.playing) {
-      try {
-        await _bgmPlayer.play(AssetSource('audio/bgm.mp3'), volume: 0.4);
-      } catch (e) {
-        debugPrint("Lỗi phát BGM: $e");
-      }
-    }
-  }
-
-  // Gọi khi Thắng/Thua: Dừng BGM, phát nhạc kết quả lặp lại
-  Future<void> playResultMusic(bool isWin) async {
-    if (!_isMusicOn) return;
-
-    await _bgmPlayer.stop();
-
     try {
-      final String file = isWin ? 'audio/win.mp3' : 'audio/lose.mp3';
-      await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource(file), volume: 1.0);
+      if (_sfxPlayer.state == PlayerState.playing) {
+        await _sfxPlayer.stop();
+      }
+      await _sfxPlayer.play(AssetSource('audio/tap.mp3'), volume: 1.0);
     } catch (e) {
-      debugPrint("Lỗi phát SFX: $e");
+      debugPrint("Error playing tap: $e");
     }
   }
 
-  // Gọi khi ấn OK: Dừng nhạc kết quả, quay lại BGM
-  Future<void> resumeBgmAfterResult() async {
+  // Âm thanh khi Mua thành công
+  Future<void> playBoughtSound() async {
     if (!_isMusicOn) return;
-
-    await _sfxPlayer.stop();
-    await _playBgm();
+    try {
+      if (_sfxPlayer.state == PlayerState.playing) {
+        await _sfxPlayer.stop();
+      }
+      await _sfxPlayer.play(AssetSource('audio/bought.mp3'), volume: 1.0);
+    } catch (e) {
+      debugPrint("Error playing bought: $e");
+    }
   }
 
   void toggleMusic() {
     _isMusicOn = !_isMusicOn;
+    debugPrint("Toggle Music: $_isMusicOn");
+
     if (_isMusicOn) {
       _playBgm();
     } else {
       _bgmPlayer.stop();
+      _resultPlayer.stop();
       _sfxPlayer.stop();
     }
+
     saveGame();
     notifyListeners();
   }
@@ -180,7 +219,7 @@ class GameService extends ChangeNotifier {
         debugPrint(">>> [System] Found Save File. Loading...");
         final Map<String, dynamic> data = json.decode(saveString);
 
-        // Khôi phục User
+        // Load User
         if (data['user'] != null) {
           final userJson = data['user'];
           user.coins = userJson['coins'] ?? 100;
@@ -211,7 +250,7 @@ class GameService extends ChangeNotifier {
           }
         }
 
-        // Khôi phục Level
+        // Load Level
         if (data['levels'] != null) {
           levels.clear();
           for (var levelJson in data['levels']) {
@@ -219,7 +258,7 @@ class GameService extends ChangeNotifier {
           }
         }
 
-        // Khôi phục Theme & Khác
+        // Load Theme & Dữ liệu khác
         if (data['unlockedThemeIds'] != null) {
           _unlockedThemeIds = List<String>.from(data['unlockedThemeIds']);
         }
@@ -230,13 +269,9 @@ class GameService extends ChangeNotifier {
           doubleCoinsPlaysLeft = data['doubleCoinsPlaysLeft'];
         }
 
-        // Khôi phục nhạc
+        // Load BGM
         if (data['isMusicOn'] != null) {
           _isMusicOn = data['isMusicOn'];
-          if (!_isMusicOn) {
-            _bgmPlayer.stop();
-            _sfxPlayer.stop();
-          }
         }
       } else {
         // New Game
@@ -247,7 +282,6 @@ class GameService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Lỗi khi khởi tạo dữ liệu game: $e');
-      // Fallback
       if (levels.isEmpty) {
         levels.add(_gen.firstLevel());
         generateMoreLevels(4);
@@ -255,6 +289,10 @@ class GameService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+
+      if (_isMusicOn) {
+        await _playBgm(); // Đảm bảo BGM chạy nếu setting bật
+      }
     }
   }
 
@@ -523,6 +561,7 @@ class GameService extends ChangeNotifier {
             price: item.price,
             owned: 1);
       }
+      playBoughtSound();
       saveGame();
       notifyListeners();
       return true;
@@ -547,6 +586,7 @@ class GameService extends ChangeNotifier {
   @override
   void dispose() {
     _bgmPlayer.dispose();
+    _resultPlayer.dispose();
     _sfxPlayer.dispose();
     super.dispose();
   }

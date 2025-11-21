@@ -44,6 +44,7 @@ class PuzzleGalleryScreen extends StatelessWidget {
 
           return GestureDetector(
             onTap: () {
+              gameService.playTapSound();
               if (collectedCount > 0) {
                 Navigator.push(
                   context,

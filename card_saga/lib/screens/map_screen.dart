@@ -211,6 +211,7 @@ class _MapScreenState extends State<MapScreen> {
                           level: level,
                           isNextPlayable: level.id == nextPlayableLevelId,
                           onTap: () {
+                            context.read<GameService>().playTapSound();
                             if (level.unlocked) {
                               Navigator.push(
                                 context,

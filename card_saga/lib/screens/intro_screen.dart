@@ -66,6 +66,8 @@ class _IntroScreenState extends State<IntroScreen> {
   }
 
   void _navigateToMapScreen() {
+    context.read<GameService>().playTapSound();
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const MapScreen()),
@@ -96,7 +98,7 @@ class _IntroScreenState extends State<IntroScreen> {
         showGalleryButton: false,
         showCoinsAndStars: false,
         showBack: false,
-        showSettings: false,
+        showSettings: true,
       ),
       backgroundColor: AppColors.bg,
       body: Padding(
